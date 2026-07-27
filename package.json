@@ -34,6 +34,8 @@
     "start": "next start -H 127.0.0.1 -p 30141",
     "start:lan": "next start -H 0.0.0.0 -p 30141",
     "lint": "eslint .",
+    "build:mobile": "PI_WEB_DIST_DIR=.next-mobile next build --webpack",
+    "start:mobile": "PI_WEB_DIST_DIR=.next-mobile next start -H 127.0.0.1 -p 30141",
     "release": "npm version patch --no-git-tag-version && npm run build && npm publish --access public"
   },
   "dependencies": {

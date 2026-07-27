@@ -238,11 +238,26 @@ export async function DELETE(
     } catch { /* skip if dir unreadable */ }
 
     getRpcSession(id)?.destroy();
-    unlinkSync(filePath);
+    // Destroying a newly-created empty AgentSession may remove its file.
+    // Treat that as an already-completed delete instead of returning 500.
+    try {
+      unlinkSync(filePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
     invalidateSessionPathCache(id);
     invalidateSessionListCache();
     return NextResponse.json({ ok: true });
   } catch (error) {
+    // Empty sessions may be removed by the SDK before the delete request
+    // reaches the filesystem. Deletion is idempotent, so clear any cached
+    // runtime/path state and report success when the target is already gone.
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      getRpcSession(id)?.destroy();
+      invalidateSessionPathCache(id);
+      invalidateSessionListCache();
+      return NextResponse.json({ ok: true });
+    }
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

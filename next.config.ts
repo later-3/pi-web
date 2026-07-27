@@ -9,7 +9,11 @@ try {
   piVersion = (JSON.parse(readFileSync(piPkgPath, "utf8")) as { version: string }).version;
 } catch { /* package not found, use default */ }
 
+const distDir = process.env.PI_WEB_DIST_DIR || undefined;
+
 const nextConfig: NextConfig = {
+  ...(distDir ? { distDir } : {}),
+  outputFileTracingRoot: __dirname,
   serverExternalPackages: [
     "undici",
     "@earendil-works/pi-coding-agent",
