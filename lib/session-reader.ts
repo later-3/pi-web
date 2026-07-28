@@ -5,7 +5,7 @@ import {
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import { closeSync, openSync, readSync } from "fs";
-import { normalize as normalizePath } from "path";
+import { isAbsolute, join, normalize as normalizePath, relative, resolve } from "path";
 import type { AgentMessage, SessionEntry, SessionHeader, SessionInfo, SessionContext } from "./types";
 import type { SessionEntry as PiSessionEntry, SessionInfo as PiSessionInfo } from "@earendil-works/pi-coding-agent";
 import { normalizeToolCalls } from "./normalize";
@@ -14,8 +14,31 @@ import { resolveProject, type ProjectInfo } from "./worktree";
 
 export { getAgentDir };
 
+export function getChatSessionsDir(): string {
+  return resolve(join(getAgentDir(), "chat-sessions"));
+}
+
+/** Server-side ownership check; UI badges never act as the write boundary. */
+export function isChatManagedSessionPath(filePath: string): boolean {
+  const candidate = resolve(filePath);
+  const rel = relative(getChatSessionsDir(), candidate);
+  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+}
+
 async function loadAllSessions(): Promise<SessionInfo[]> {
-  const piSessions: PiSessionInfo[] = await SessionManager.listAll();
+  const [personalSessions, chatSessions] = await Promise.all([
+    SessionManager.listAll(),
+    SessionManager.listAll(getChatSessionsDir()),
+  ]);
+  const personalIds = new Set(personalSessions.map((session) => session.id));
+  const duplicate = chatSessions.find((session) => personalIds.has(session.id));
+  if (duplicate) {
+    throw new Error(`Duplicate pi session id across personal and Chat stores: ${duplicate.id}`);
+  }
+  const piSessions: Array<PiSessionInfo & { sessionSource: "pi" | "chat"; readOnly: boolean }> = [
+    ...personalSessions.map((session) => ({ ...session, sessionSource: "pi" as const, readOnly: false })),
+    ...chatSessions.map((session) => ({ ...session, sessionSource: "chat" as const, readOnly: true })),
+  ];
   const pathToId = new Map<string, string>();
   for (const s of piSessions) pathToId.set(sessionPathKey(s.path), s.id);
 
@@ -42,6 +65,8 @@ async function loadAllSessions(): Promise<SessionInfo[]> {
       parentSessionId: s.parentSessionPath ? pathToId.get(sessionPathKey(s.parentSessionPath)) : undefined,
       projectRoot: project?.projectRoot ?? s.cwd,
       ...(project?.isWorktree && project.branch ? { worktreeBranch: project.branch } : {}),
+      sessionSource: s.sessionSource,
+      readOnly: s.readOnly,
     };
   });
 }

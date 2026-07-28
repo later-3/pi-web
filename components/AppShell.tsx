@@ -11,10 +11,14 @@ import { ModelsConfig } from "./ModelsConfig";
 import { SkillsConfig } from "./SkillsConfig";
 import { PluginsConfig } from "./PluginsConfig";
 import { ProjectTrustDialog } from "./ProjectTrustDialog";
+import { ExtensionsConfig } from "./ExtensionsConfig";
 import { BranchNavigator } from "./BranchNavigator";
 import { useTheme } from "@/hooks/useTheme";
 import { useI18n } from "@/hooks/useI18n";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useVisualViewport } from "@/hooks/useVisualViewport";
+import { MobileDebugOverlay } from "./MobileDebugOverlay";
+import { MobileWorkspaceHeader } from "./MobileWorkspaceHeader";
 import { copyText } from "@/lib/clipboard";
 import { getFileName } from "@/lib/file-paths";
 import { buildAtMentionText, buildFileAtMentionsText, buildFileLineMentionText } from "@/lib/file-fuzzy";
@@ -41,6 +45,7 @@ export function AppShell() {
   const { isDark, toggleTheme } = useTheme();
   const { locale, setLocale, t: translate, supportedLocales } = useI18n();
   const isMobile = useIsMobile();
+  useVisualViewport(); // sets --visual-viewport-height CSS var for fixed elements
   const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
   // When user clicks +, we only store the cwd — no fake session id
   const [newSessionCwd, setNewSessionCwd] = useState<string | null>(null);
@@ -59,6 +64,9 @@ export function AppShell() {
   const [projectTrustDialogOpen, setProjectTrustDialogOpen] = useState(false);
   const [projectTrustBusy, setProjectTrustBusy] = useState(false);
   const [projectTrustError, setProjectTrustError] = useState<string | null>(null);
+  const [extensionsConfigOpen, setExtensionsConfigOpen] = useState(false);
+  const [mobileDebugOpen, setMobileDebugOpen] = useState(false);
+  const [mobileUtilitiesOpen, setMobileUtilitiesOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarReady, setMobileSidebarReady] = useState(false);
   // On mobile the sidebar is an overlay drawer; hide it by default so the chat
@@ -132,17 +140,28 @@ export function AppShell() {
   const [topPanelPos, setTopPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const toggleTopPanel = useCallback((panel: "branches" | "system" | "session" | "language") => {
-    if (isMobile) setSidebarOpen(false);
+    if (isMobile) {
+      setSidebarOpen(false);
+      setRightPanelOpen(false);
+    }
     setActiveTopPanel((cur) => cur === panel ? null : panel);
   }, [isMobile]);
 
   const openSessionStatsPanel = useCallback(() => {
-    if (isMobile) setSidebarOpen(false);
+    if (isMobile) {
+      setSidebarOpen(false);
+      setRightPanelOpen(false);
+    }
     setActiveTopPanel("session");
   }, [isMobile]);
 
   const handleSidebarToggle = useCallback(() => {
-    if (isMobile) setActiveTopPanel(null);
+    if (isMobile) {
+      setActiveTopPanel(null);
+      setMobileUtilitiesOpen(false);
+      // On mobile, opening sidebar closes right panel (mutual exclusion)
+      setRightPanelOpen(false);
+    }
     setSidebarOpen((open) => !open);
   }, [isMobile]);
 
@@ -281,6 +300,7 @@ export function AppShell() {
     setSelectedSession(session);
     setSessionKey((k) => k + 1);
     setSystemPrompt(null);
+    setMobileUtilitiesOpen(false);
     setInitialSessionRestored(true);
     // On mobile, collapse the overlay drawer so the chat is revealed after pick.
     if (isMobile && !isRestore) setSidebarOpen(false);
@@ -304,6 +324,7 @@ export function AppShell() {
     setBranchActiveLeafId(null);
     setSystemPrompt(null);
     setActiveTopPanel(null);
+    setMobileUtilitiesOpen(false);
     if (isMobile) setSidebarOpen(false);
     router.replace("/", { scroll: false });
   }, [router, isMobile]);
@@ -447,7 +468,10 @@ export function AppShell() {
     setActiveFileTabId(tabId);
     setRightPanelOpen(true);
     // On mobile the file panel is full-screen; close the drawer so it shows.
-    if (isMobile) setSidebarOpen(false);
+    if (isMobile) {
+      setSidebarOpen(false);
+      setActiveTopPanel(null);
+    }
   }, [isMobile]);
 
   const handleOpenLinkedFile = useCallback((filePath: string) => {
@@ -603,6 +627,19 @@ export function AppShell() {
               </svg>
             ),
           },
+          {
+            label: "Ext",
+            onClick: () => setExtensionsConfigOpen(true),
+            disabled: !activeCwd && !selectedSession?.cwd && !newSessionCwd,
+            icon: (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 7h-9" />
+                <path d="M14 17H5" />
+                <circle cx="17" cy="17" r="3" />
+                <circle cx="7" cy="7" r="3" />
+              </svg>
+            ),
+          },
         ] as { label: string; onClick: () => void; disabled: boolean; icon: React.ReactNode }[]).map(({ label, onClick, disabled, icon }) => (
           <button
             key={label}
@@ -611,7 +648,7 @@ export function AppShell() {
             title={label}
             style={{
               flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              height: 32, padding: 0, background: "none", border: "none",
+              height: isMobile ? 44 : 32, padding: 0, background: "none", border: "none",
               borderRadius: 9, color: "var(--text-muted)", cursor: disabled ? "default" : "pointer",
               fontSize: 12, opacity: disabled ? 0.35 : 1,
               transition: "background 0.12s, color 0.12s",
@@ -624,6 +661,27 @@ export function AppShell() {
           </button>
         ))}
       </div>
+      {isMobile && (
+        <button
+          onClick={() => {
+            setSidebarOpen(false);
+            setMobileDebugOpen(true);
+          }}
+          style={{
+            flexShrink: 0,
+            minHeight: 44,
+            margin: "0 8px 8px",
+            border: "1px solid var(--border)",
+            borderRadius: 9,
+            background: "var(--bg)",
+            color: "var(--text-muted)",
+            cursor: "pointer",
+            fontSize: 12,
+          }}
+        >
+          Run mobile self-check
+        </button>
+      )}
     </>
   );
 
@@ -689,7 +747,7 @@ export function AppShell() {
           animation: none;
         }
       }
-      @media (max-width: 640px) {
+      @media (max-width: 768px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
         .sidebar-overlay-backdrop.sidebar-mobile-pending {
           opacity: 0 !important;
           pointer-events: none !important;
@@ -700,7 +758,7 @@ export function AppShell() {
         }
       }
     `}</style>
-    <div style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--bg)" }}>
+    <div className="app-shell-root" style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--bg)" }}>
       {/* Mobile overlay backdrop */}
       <div
         className={`sidebar-overlay-backdrop${mobileSidebarReady ? "" : " sidebar-mobile-pending"}`}
@@ -733,15 +791,53 @@ export function AppShell() {
 
       {/* Center: chat */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+        {isMobile && (
+          <MobileWorkspaceHeader
+            selectedSession={selectedSession}
+            cwd={selectedSession?.cwd ?? activeCwd ?? effectiveNewSessionCwd}
+            rightPanelOpen={rightPanelOpen}
+            isDark={isDark}
+            onNewSession={(cwd) => handleNewSession(`mobile-${Date.now()}`, cwd)}
+            onOpenWorkspace={() => {
+              setActiveTopPanel(null);
+              setMobileUtilitiesOpen(false);
+              setRightPanelOpen(false);
+              setSidebarOpen(true);
+            }}
+            onRefresh={() => {
+              setRefreshKey((key) => key + 1);
+              setExplorerRefreshKey((key) => key + 1);
+            }}
+            onToggleFiles={() => {
+              setActiveTopPanel(null);
+              setMobileUtilitiesOpen(false);
+              setSidebarOpen(false);
+              setRightPanelOpen((open) => !open);
+            }}
+            onViewHistory={handleViewFullHistory}
+            onToggleTheme={() => toggleTheme()}
+            onShowUtilities={() => {
+              setActiveTopPanel(null);
+              setSidebarOpen(false);
+              setRightPanelOpen(false);
+              setMobileUtilitiesOpen(true);
+            }}
+            onRunSelfCheck={() => setMobileDebugOpen(true)}
+          />
+        )}
         {/* Top bar with sidebar toggle */}
-        <div ref={topBarRef} style={{ display: "flex", alignItems: "center", flexShrink: 0, borderBottom: "1px solid var(--border)", height: 36, background: "var(--bg-panel)" }}>
+        <div
+          ref={topBarRef}
+          className={isMobile ? `mobile-topbar mobile-utility-tray${mobileUtilitiesOpen ? " is-open" : ""}` : undefined}
+          style={{ display: "flex", alignItems: "center", flexShrink: 0, borderBottom: "1px solid var(--border)", height: isMobile ? undefined : 36, background: "var(--bg-panel)" }}
+        >
           <button
             onClick={handleSidebarToggle}
              title={sidebarOpen ? translate("sidebar.hide") : translate("sidebar.show")}
              aria-label={sidebarOpen ? translate("sidebar.hide") : translate("sidebar.show")}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center",
-              width: TOP_BAR_ICON_BUTTON_SIZE, height: TOP_BAR_ICON_BUTTON_SIZE, padding: 0,
+              width: isMobile ? 44 : TOP_BAR_ICON_BUTTON_SIZE, height: isMobile ? 44 : TOP_BAR_ICON_BUTTON_SIZE, padding: 0,
               background: "none", border: "none", borderRight: "1px solid var(--border)",
               color: "var(--text-muted)", cursor: "pointer", flexShrink: 0, transition: "color 0.12s",
             }}
@@ -768,7 +864,7 @@ export function AppShell() {
             aria-pressed={isDark}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center",
-              width: TOP_BAR_ICON_BUTTON_SIZE, height: TOP_BAR_ICON_BUTTON_SIZE, padding: 0,
+              width: isMobile ? 44 : TOP_BAR_ICON_BUTTON_SIZE, height: isMobile ? 44 : TOP_BAR_ICON_BUTTON_SIZE, padding: 0,
               background: "none", border: "none", borderRight: "1px solid var(--border)",
               color: "var(--text-muted)", cursor: "pointer", flexShrink: 0, transition: "color 0.12s",
             }}
@@ -1142,12 +1238,12 @@ export function AppShell() {
           })()}
           {/* Top panel dropdown — shared, only one active at a time */}
           {activeTopPanel && topPanelPos && (
-            <div style={{
+            <div className={isMobile ? "mobile-top-panel" : undefined} style={{
               position: "fixed",
               top: topPanelPos.top,
-              left: topPanelPos.left,
-              width: topPanelPos.width,
-              maxHeight: `calc(100dvh - ${topPanelPos.top}px)`,
+              left: isMobile ? 0 : topPanelPos.left,
+              width: isMobile ? "100%" : topPanelPos.width,
+              maxHeight: `calc(var(--visual-viewport-offset-top, 0px) + var(--visual-viewport-height, 100dvh) - ${topPanelPos.top}px - var(--safe-area-bottom))`,
               overflowY: "auto",
               zIndex: 500,
             }}>
@@ -1494,13 +1590,21 @@ export function AppShell() {
     </div>
     {/* File panel toggle — always visible at top-right */}
     <button
-      onClick={() => setRightPanelOpen((v) => !v)}
-       title={rightPanelOpen ? translate("files.hidePanel") : translate("files.showPanel")}
-       aria-label={rightPanelOpen ? translate("files.hidePanel") : translate("files.showPanel")}
+      onClick={() => {
+        if (isMobile && !rightPanelOpen) {
+          // Opening file panel: close sidebar and top panels (mutual exclusion)
+          setSidebarOpen(false);
+          setActiveTopPanel(null);
+        }
+        setRightPanelOpen((v) => !v);
+      }}
+      title={rightPanelOpen ? translate("files.hidePanel") : translate("files.showPanel")}
+      aria-label={rightPanelOpen ? translate("files.hidePanel") : translate("files.showPanel")}
+      className={isMobile ? "mobile-file-toggle" : undefined}
       style={{
-        position: "fixed", top: 0, right: 0, zIndex: 300,
+        position: "fixed", top: isMobile ? undefined : 0, right: isMobile ? undefined : 0, zIndex: 300,
         display: "flex", alignItems: "center", justifyContent: "center",
-        width: 36, height: 36, padding: 0,
+        width: isMobile ? undefined : 36, height: isMobile ? undefined : 36, padding: 0,
         background: "var(--bg-panel)", border: "none", borderLeft: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
         color: rightPanelOpen ? "var(--text)" : "var(--text-muted)",
         cursor: "pointer", transition: "color 0.12s",
@@ -1533,6 +1637,20 @@ export function AppShell() {
         sessionId={selectedSession?.id ?? null}
         onClose={() => setPluginsConfigOpen(false)}
         onReloaded={() => setSessionKey((k) => k + 1)}
+      />
+    )}
+    {extensionsConfigOpen && (activeCwd ?? selectedSession?.cwd ?? newSessionCwd) && (
+      <ExtensionsConfig
+        cwd={(activeCwd ?? selectedSession?.cwd ?? newSessionCwd)!}
+        sessionId={selectedSession?.id ?? null}
+        onClose={() => setExtensionsConfigOpen(false)}
+        onReloaded={() => setSessionKey((k) => k + 1)}
+      />
+    )}
+    {isMobile && (
+      <MobileDebugOverlay
+        open={mobileDebugOpen}
+        onClose={() => setMobileDebugOpen(false)}
       />
     )}
     </>

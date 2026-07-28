@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { resolveSessionPath } from "@/lib/session-reader";
+import { isChatManagedSessionPath, resolveSessionPath } from "@/lib/session-reader";
 import { startRpcSession, getRpcSession } from "@/lib/rpc-manager";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
@@ -13,16 +13,22 @@ export async function POST(
   try {
     const body = await req.json() as { type: string; [key: string]: unknown };
 
-    // Fast path: already-running session
+    const filePath = await resolveSessionPath(id);
+    if (!filePath) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+    if (isChatManagedSessionPath(filePath)) {
+      return NextResponse.json(
+        { error: "Chat-managed pi sessions are read-only evidence" },
+        { status: 403 },
+      );
+    }
+
+    // Fast path only after the server-side ownership check above.
     const existing = getRpcSession(id);
     if (existing?.isAlive()) {
       const result = await existing.send(body);
       return NextResponse.json({ success: true, data: result });
-    }
-
-    const filePath = await resolveSessionPath(id);
-    if (!filePath) {
-      return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
     const cwd = SessionManager.open(filePath).getHeader()?.cwd ?? process.cwd();

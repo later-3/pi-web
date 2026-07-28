@@ -103,3 +103,65 @@ export interface PluginsResponse {
   diagnostics: PluginDiagnostic[];
   projectResourcesLoaded: boolean;
 }
+
+// ── Extensions (file-level pi extensions, global toggle) ──
+
+export type ExtensionScope = "global" | "project";
+export type ExtensionOrigin = "file" | "package";
+
+export interface ExtensionInfo {
+  /** Full filesystem path of the active .ts/.js file (or the would-be path if disabled). */
+  path: string;
+  /** Display name derived from file/dir name. */
+  name: string;
+  scope: ExtensionScope;
+  origin: ExtensionOrigin;
+  /** metadata.source from pi: "local" | "cli" | "auto" | npm/git source. */
+  source: string;
+  /** True when the .ts/.js file exists and pi will load it. */
+  enabled: boolean;
+  /** Path of the .disabled file when currently disabled. */
+  disabledPath?: string;
+  /** Only single-file file-origin extensions can be toggled by rename. */
+  canToggle: boolean;
+  /** Disabled for the current session only (per-session override). False/absent when no session context. */
+  sessionDisabled?: boolean;
+}
+
+export interface ExtensionsResponse {
+  extensions: ExtensionInfo[];
+  errors: Array<{ path: string; error: string }>;
+}
+
+// ── Provider request review payloads ──
+
+export interface ProviderRequestSummary {
+  file: string;
+  path: string;
+  mtime: number;
+  size: number;
+  model?: string;
+  messageCount: number;
+  toolCount: number;
+}
+
+export interface ProviderRequestsResponse {
+  requests: ProviderRequestSummary[];
+  dir: string;
+}
+
+export interface ProviderRequestDetail {
+  file: string;
+  path: string;
+  payload: unknown;
+  summary: {
+    model?: string;
+    messageCount: number;
+    toolCount: number;
+    maxTokens?: number;
+    reasoningEffort?: string;
+    thinking?: unknown;
+    stream?: boolean;
+    roles: Record<string, number>;
+  };
+}

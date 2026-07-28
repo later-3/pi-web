@@ -4,6 +4,7 @@ import { memo, useState, useRef, useEffect, useMemo } from "react";
 import { MarkdownBody } from "./MarkdownBody";
 import { copyText } from "@/lib/clipboard";
 import { useI18n } from "@/hooks/useI18n";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { parseCompactionSummary } from "@/lib/compaction-summary";
 import { isEmptyThinkingBlock } from "@/lib/message-display";
 import { parseUnifiedPatch, type SplitDiffCell } from "@/lib/patch";
@@ -149,6 +150,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
   onEditContent?: (content: string) => void;
 }) {
   const { t } = useI18n();
+  const isMobile = useIsMobile();
   const [hovered, setHovered] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -231,20 +233,21 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
       {(time || canFork || canNavigate || true) && (
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "flex-end",
-          gap: 6, marginTop: 3,
+          gap: 6, marginTop: 3, flexWrap: "wrap",
         }}>
           <div style={{
             display: "flex", gap: 3,
-            opacity: hovered ? 1 : 0,
-            pointerEvents: hovered ? "auto" : "none",
+            opacity: (hovered || isMobile) ? 1 : 0,
+            pointerEvents: (hovered || isMobile) ? "auto" : "none",
             transition: "opacity 0.12s",
           }}>
             <button
+              className={isMobile ? "mobile-message-action" : undefined}
               onClick={copyContent}
                title={t("i18n.copyMessage")}
               style={{
                 display: "flex", alignItems: "center", gap: 4,
-                padding: "3px 8px", height: 22,
+                padding: isMobile ? "0 12px" : "3px 8px", height: isMobile ? 44 : 22,
                 background: "none", border: "none",
                 borderRadius: 5,
                 color: copied ? "var(--accent)" : "var(--text-dim)",
@@ -272,17 +275,18 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
           {(canFork || canNavigate) && (
             <div style={{
               display: "flex", gap: 3,
-              opacity: (hovered || forking) ? 1 : 0,
-              pointerEvents: (hovered || forking) ? "auto" : "none",
+              opacity: (hovered || forking || isMobile) ? 1 : 0,
+              pointerEvents: (hovered || forking || isMobile) ? "auto" : "none",
               transition: "opacity 0.12s",
             }}>
               {canNavigate && (
                 <button
+                  className={isMobile ? "mobile-message-action" : undefined}
                   onClick={() => { onNavigate!(prevAssistantEntryId!); onEditContent?.(content); }}
                    title={t("i18n.editFromHereTitle")}
                   style={{
                     display: "flex", alignItems: "center", gap: 4,
-                    padding: "3px 8px", height: 22,
+                    padding: isMobile ? "0 12px" : "3px 8px", height: isMobile ? 44 : 22,
                     background: "none", border: "none",
                     borderRadius: 5,
                     color: "var(--text-dim)",
@@ -303,12 +307,13 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
               )}
               {canFork && (
                 <button
+                  className={isMobile ? "mobile-message-action" : undefined}
                   onClick={() => { onFork!(entryId!); }}
                   disabled={forking}
                    title={forking ? t("i18n.creatingSession") : t("i18n.newSessionTitle")}
                   style={{
                     display: "flex", alignItems: "center", gap: 4,
-                    padding: "3px 8px", height: 22,
+                    padding: isMobile ? "0 12px" : "3px 8px", height: isMobile ? 44 : 22,
                     background: "none", border: "none",
                     borderRadius: 5,
                     color: forking ? "var(--accent)" : "var(--text-dim)",
@@ -362,6 +367,7 @@ function AssistantMessageView({
   entryId?: string;
 }) {
   const { t } = useI18n();
+  const isMobile = useIsMobile();
   const time = showTimestamp ? formatTime(message.timestamp) : null;
   const blockItems = (message.content ?? [])
     .map((block, originalIndex) => ({ block, originalIndex }))
@@ -533,7 +539,7 @@ function AssistantMessageView({
       </div>
 
       <div style={{
-        display: "flex", alignItems: "center", gap: 8, marginTop: 4,
+        display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap",
       }}>
         {message.usage && !isStreaming && (
           <div style={{ fontSize: 11, color: "var(--text-dim)" }}>
@@ -542,19 +548,20 @@ function AssistantMessageView({
         )}
         {textContent && !isStreaming && (
           <button
+            className={isMobile ? "mobile-message-action" : undefined}
             onClick={copyContent}
              title={t("i18n.copyMessage")}
             style={{
               display: "flex", alignItems: "center", gap: 4,
-              padding: "3px 8px", height: 22,
+              padding: isMobile ? "0 12px" : "3px 8px", height: isMobile ? 44 : 22,
               background: "none", border: "none",
               borderRadius: 5,
               color: copied ? "var(--accent)" : "var(--text-dim)",
               cursor: "pointer",
               fontSize: 11, fontWeight: 400,
               whiteSpace: "nowrap",
-              opacity: hovered ? 1 : 0,
-              pointerEvents: hovered ? "auto" : "none",
+              opacity: (hovered || isMobile) ? 1 : 0,
+              pointerEvents: (hovered || isMobile) ? "auto" : "none",
               transition: "opacity 0.12s, color 0.12s",
             }}
             onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = "var(--accent)"; }}

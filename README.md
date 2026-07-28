@@ -75,11 +75,13 @@ npx @agegr/pi-web@latest
 - **See session state clearly**: context usage, cost, compaction state, and system prompt details are visible from the top bar.
 - **Configure less from the terminal**: manage models, login/API keys, model tests, and skill switches from the web UI.
 - **Use the interface in your language**: switch between the supported UI languages from the top bar.
+- **Inspect Chat execution transcripts**: sessions in `~/.pi/agent/chat-sessions` are labeled as Chat-managed, read-only evidence. They can be viewed or exported, but not resumed, forked, renamed, or deleted.
 
 ## Notes
 
 - **Data directory**: Pi Web reads `~/.pi/agent/sessions` by default. Set `PI_CODING_AGENT_DIR` to point at another pi agent directory.
 - **Session files**: files are stored as `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`.
+- **Chat-managed sessions**: Pi Web also reads `~/.pi/agent/chat-sessions/<timestamp>_chat-<tool-execution-id>.jsonl`; these transcripts are not resumable pi-web workspaces.
 - **Model config**: the Models panel reads and writes `models.json` in the pi agent directory. Model lists and defaults come from pi's config.
 - **File access**: file browsing and preview are scoped to the selected project directory and working directories that appear in sessions.
 - **Git worktrees**: see [Worktrees in Pi Web](./docs/worktrees.md) for when the switcher appears, how new worktrees are created, and what removal does.

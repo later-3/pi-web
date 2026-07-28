@@ -72,11 +72,13 @@ npx @agegr/pi-web@latest
 - **边聊边看项目文件**：左侧浏览项目文件，右侧打开源码、文档、图片、音频和 PDF；文件变化会自动刷新，适合边让 agent 改边检查结果。
 - **随时掌握会话状态**：在顶部就能看到上下文占用、花费、压缩结果和系统提示，长会话不再像黑箱。
 - **少离开当前界面**：模型、登录/API key、模型测试和技能开关都能在网页里处理，配置 agent 时不用在多个工具之间来回切换。
+- **复核 Chat 执行层**：同时读取`~/.pi/agent/chat-sessions`中的Chat托管转录，以`CHAT · 只读`分类展示；可查看和导出，但不能继续、Fork、重命名或删除。
 
 ## 注意事项
 
 - **数据目录**：默认读取 `~/.pi/agent/sessions` 下的会话文件。可通过环境变量 `PI_CODING_AGENT_DIR` 指定其他 pi agent 目录。
 - **会话文件**：路径形如 `~/.pi/agent/sessions/<编码后的工作目录>/<时间戳>_<uuid>.jsonl`。
+- **Chat托管会话**：额外读取`~/.pi/agent/chat-sessions/<时间戳>_chat-<tool-execution-id>.jsonl`；这些文件是Chat ToolExecution的只读证据，不是pi-web可续聊的普通会话。
 - **模型配置**：Models 面板读写 pi agent 目录下的 `models.json`，模型列表和默认模型由 pi 的配置解析得到。
 - **文件访问**：文件浏览和预览面向当前选择的项目目录，以及会话中已出现过的工作目录。
 - **Git worktree**：什么时候显示切换器、新建目录在哪里、删除会影响什么，见 [Pi Web 里的 Worktree](./docs/worktrees.zh-CN.md)。

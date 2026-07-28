@@ -174,6 +174,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
   const { t } = useI18n();
   const { soundEnabled, onSoundToggle, playDoneSound, unlockAudio } = useAudio();
   const isMobile = useIsMobile();
+  const readOnly = session?.readOnly === true;
 
   // Wrap onAgentEnd to play the completion sound. This is more reliable than
   // wrapping handleAgentEventRef because useAgentSession overwrites that ref
@@ -298,9 +299,9 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
   useEffect(() => () => { onContextUsageChange?.(null); }, [onContextUsageChange]);
 
   const onDrop = useCallback((files: File[]) => {
-    if (sessionBusy) return;
+    if (sessionBusy || readOnly) return;
     chatInputRef?.current?.addImages(files);
-  }, [sessionBusy, chatInputRef]);
+  }, [sessionBusy, readOnly, chatInputRef]);
 
   const { isDragOver, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } = useDragDrop(onDrop);
 
@@ -330,7 +331,23 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
     ? (modelThinkingLevelMaps[`${displayModelValue.provider}:${displayModelValue.modelId}`] ?? null)
     : null;
 
-  const chatInputElement = (
+  const chatInputElement = readOnly ? (
+    <div
+      role="note"
+      style={{
+        margin: "0 16px 14px",
+        padding: "11px 14px",
+        border: "1px solid var(--border)",
+        borderRadius: 10,
+        background: "var(--bg-secondary)",
+        color: "var(--text-muted)",
+        fontSize: 12,
+        lineHeight: 1.5,
+      }}
+    >
+      Chat 托管的 pi 执行记录 · 只读。可查看或导出；不能在 pi-web 继续、Fork、重命名或删除。
+    </div>
+  ) : (
     <ChatInput
       ref={chatInputRef}
       onSend={handleSend}
@@ -446,8 +463,8 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
       )}
 
       {isEmptyNew ? (
-        <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8">
-          <div className="w-full max-w-[820px]">
+        <div className={`flex flex-1 flex-col items-center overflow-y-auto ${isMobile ? "justify-between px-0 pt-4 pb-0" : "justify-center px-4 py-8"}`}>
+          <div className="w-full max-w-[820px]" style={{ paddingLeft: isMobile ? 16 : 0, paddingRight: isMobile ? 16 : 0 }}>
             <div
               className="mb-3"
               style={{
@@ -455,8 +472,8 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: 12,
-                marginLeft: 16,
-                marginRight: 52,
+                marginLeft: isMobile ? 0 : 16,
+                marginRight: isMobile ? 0 : 52,
                 fontFamily: "var(--font-mono)",
               }}
             >
@@ -474,8 +491,13 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
               </div>
             </div>
             <NoticeShelf notices={notices} align="right" />
-            {chatInputElement}
+            {isMobile ? null : chatInputElement}
           </div>
+          {isMobile && (
+            <div className="w-full max-w-[820px]" style={{ flexShrink: 0, marginTop: "auto" }}>
+              {chatInputElement}
+            </div>
+          )}
         </div>
       ) : (
       <>
@@ -567,11 +589,11 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
                     cwd={messageCwd}
                     onOpenFile={onOpenFile}
                     entryId={entryIds[idx]}
-                    onFork={sessionBusy || isNew || (idx === 0 && msg.role === "user") ? undefined : handleFork}
+                    onFork={readOnly || sessionBusy || isNew || (idx === 0 && msg.role === "user") ? undefined : handleFork}
                     forking={forkingEntryId === entryIds[idx]}
-                    onNavigate={sessionBusy ? undefined : handleNavigate}
-                    prevAssistantEntryId={sessionBusy ? undefined : prevAssistantEntryId}
-                    onEditContent={handleEditContent}
+                    onNavigate={readOnly || sessionBusy ? undefined : handleNavigate}
+                    prevAssistantEntryId={readOnly || sessionBusy ? undefined : prevAssistantEntryId}
+                    onEditContent={readOnly ? undefined : handleEditContent}
                     showTimestamp={showTimestamp}
                     prevTimestamp={idx > 0 ? (messages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined}
                     sessionId={session?.id ?? sessionIdRef.current ?? undefined}

@@ -5,6 +5,7 @@ import { existsSync, realpathSync, writeFileSync } from "fs";
 import { resolve } from "path";
 import { validateAgentImages } from "./image-attachments";
 import { invalidateModelsCache } from "./models-cache";
+import { getDisabledExtensionsForSession } from "./session-extension-config";
 import { cacheSessionPath, invalidateSessionListCache } from "./session-reader";
 import { getProjectTrustStatus, projectTrustReloadOptions } from "./project-trust";
 import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
@@ -1137,9 +1138,23 @@ export async function startRpcSession(
     // Gate untrusted project extensions so opening a repository does not run
     // its .pi/extensions code automatically (see lib/project-trust.ts, #236).
     const trustReloadOptions = projectTrustReloadOptions(cwd, agentDir);
+    // Per-session extension overrides: filter out extensions this session has
+    // disabled in ~/.pi/agent/pi-web-config.json. extensionsOverride re-runs on
+    // every reload, so toggling a path + reloading takes effect immediately.
+    const sessionConfigId = sessionManager.getSessionId();
     const services = await createAgentSessionServices({
       cwd,
       agentDir,
+      resourceLoaderOptions: {
+        extensionsOverride: (base) => {
+          const disabled = getDisabledExtensionsForSession(sessionConfigId);
+          if (disabled.size === 0) return base;
+          return {
+            ...base,
+            extensions: base.extensions.filter((e) => !disabled.has(e.path)),
+          };
+        },
+      },
       ...(trustReloadOptions ? { resourceLoaderReloadOptions: trustReloadOptions } : {}),
     });
     const { session: inner } = await createAgentSessionFromServices({

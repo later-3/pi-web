@@ -5,6 +5,8 @@ import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/hooks/useI18n";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { FileExplorer, type FileExplorerHandle } from "./FileExplorer";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { IconDotsVertical, IconPencil, IconTrash, IconX } from "@tabler/icons-react";
 
 declare global {
   interface Window {
@@ -1784,21 +1786,25 @@ function SessionItem({
   onToggleCollapse?: () => void;
 }) {
   const { t } = useI18n();
+  const isMobile = useIsMobile();
   const [hovered, setHovered] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const title = session.name || session.firstMessage.slice(0, 50) || session.id.slice(0, 12);
+  const readOnly = session.readOnly === true;
 
   const startRename = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
+    if (readOnly) return;
     setRenameValue(session.name ?? "");
     setRenaming(true);
     setTimeout(() => inputRef.current?.select(), 0);
-  }, [session.name]);
+  }, [readOnly, session.name]);
 
   const commitRename = useCallback(async () => {
     const name = renameValue.trim();
@@ -1817,6 +1823,7 @@ function SessionItem({
   }, [renameValue, session.id, session.name, onRenamed]);
 
   const performDelete = useCallback(async () => {
+    if (readOnly) return;
     setConfirmDelete(false);
     setDeleting(true);
     try {
@@ -1825,16 +1832,17 @@ function SessionItem({
     } catch {
       setDeleting(false);
     }
-  }, [session.id, onDeleted]);
+  }, [readOnly, session.id, onDeleted]);
 
   const handleDeleteClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
+    if (readOnly) return;
     if (e.shiftKey) {
       void performDelete();
     } else {
       setConfirmDelete(true);
     }
-  }, [performDelete]);
+  }, [readOnly, performDelete]);
 
   const handleDeleteConfirm = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1967,6 +1975,23 @@ function SessionItem({
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                 {title}
               </span>
+              {readOnly && (
+                <span
+                  title="Chat托管，只读"
+                  style={{
+                    flexShrink: 0,
+                    padding: "1px 5px",
+                    borderRadius: 999,
+                    background: "color-mix(in srgb, var(--accent) 12%, transparent)",
+                    color: "var(--accent)",
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  CHAT · 只读
+                </span>
+              )}
             </div>
             <div style={{ marginTop: 2, display: "flex", alignItems: "center", gap: 8, color: "var(--text-dim)", fontSize: 11, minWidth: 0 }}>
               {isRunning ? (
@@ -2001,7 +2026,7 @@ function SessionItem({
               title={collapsed ? "Expand forks" : "Collapse forks"}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
-                width: 20, height: 20, padding: 0, flexShrink: 0,
+                width: isMobile ? 44 : 20, height: isMobile ? 44 : 20, padding: 0, flexShrink: 0,
                 background: "none", border: "none",
                 color: "var(--text-dim)", cursor: "pointer",
                 transform: collapsed ? "rotate(-90deg)" : "none",
@@ -2014,8 +2039,90 @@ function SessionItem({
             </button>
           )}
 
-          {/* Action buttons — shown on hover */}
-          {hovered && (
+          {isMobile && !readOnly && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setMobileActionsOpen(true);
+              }}
+              aria-label={`Session actions for ${title}`}
+              title="Session actions"
+              style={{
+                width: 44,
+                height: 44,
+                padding: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                color: "var(--text-muted)",
+                background: "transparent",
+                border: "none",
+                borderRadius: 8,
+              }}
+            >
+              <IconDotsVertical size={19} stroke={1.8} aria-hidden="true" />
+            </button>
+          )}
+
+          {isMobile && !readOnly && mobileActionsOpen && (
+            <>
+              <button
+                type="button"
+                className="mobile-action-backdrop"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMobileActionsOpen(false);
+                }}
+                aria-label="Close session actions"
+              />
+              <div className="mobile-action-sheet" role="dialog" aria-modal="true" aria-label={`Session actions for ${title}`}>
+                <div className="mobile-action-sheet-header">
+                  <div>
+                    <strong>{title}</strong>
+                    <span>{session.messageCount} messages</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="mobile-icon-button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setMobileActionsOpen(false);
+                    }}
+                    aria-label="Close session actions"
+                  >
+                    <IconX size={22} stroke={1.8} aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="mobile-action-grid">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      setMobileActionsOpen(false);
+                      startRename(event);
+                    }}
+                  >
+                    <IconPencil size={21} stroke={1.7} aria-hidden="true" />
+                    <span>Rename session</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      setMobileActionsOpen(false);
+                      handleDeleteClick(event);
+                    }}
+                  >
+                    <IconTrash size={21} stroke={1.7} aria-hidden="true" />
+                    <span>Delete session</span>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Desktop action buttons — shown on hover */}
+          {!isMobile && hovered && !readOnly && (
             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
               <button
                 onClick={startRename}

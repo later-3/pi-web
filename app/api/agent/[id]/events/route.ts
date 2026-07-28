@@ -1,4 +1,4 @@
-import { resolveSessionPath } from "@/lib/session-reader";
+import { isChatManagedSessionPath, resolveSessionPath } from "@/lib/session-reader";
 import { getRpcSession, startRpcSession } from "@/lib/rpc-manager";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
@@ -11,13 +11,17 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  // Fast path: already-running session
+  const filePath = await resolveSessionPath(id);
+  if (!filePath) {
+    return new Response("Session not found", { status: 404 });
+  }
+  if (isChatManagedSessionPath(filePath)) {
+    return new Response("Chat-managed pi sessions are read-only evidence", { status: 403 });
+  }
+
+  // Fast path only after the server-side ownership check above.
   let session = getRpcSession(id);
   if (!session || !session.isAlive()) {
-    const filePath = await resolveSessionPath(id);
-    if (!filePath) {
-      return new Response("Session not found", { status: 404 });
-    }
     const cwd = SessionManager.open(filePath).getHeader()?.cwd ?? process.cwd();
     try {
       ({ session } = await startRpcSession(id, filePath, cwd));

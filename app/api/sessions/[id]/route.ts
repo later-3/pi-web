@@ -8,6 +8,7 @@ import {
   invalidateSessionPathCache,
   invalidateSessionListCache,
   buildSessionContext,
+  isChatManagedSessionPath,
   readSessionHeader,
 } from "@/lib/session-reader";
 import { sessionPathKey } from "@/lib/session-path";
@@ -155,6 +156,8 @@ export async function GET(
           })()
         : "(no messages)",
       parentSessionId,
+      sessionSource: isChatManagedSessionPath(filePath) ? "chat" : "pi",
+      readOnly: isChatManagedSessionPath(filePath),
     } : null;
 
     return NextResponse.json({
@@ -185,6 +188,12 @@ export async function PATCH(
     if (!filePath) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
+    if (isChatManagedSessionPath(filePath)) {
+      return NextResponse.json(
+        { error: "Chat-managed pi sessions are read-only evidence" },
+        { status: 403 },
+      );
+    }
     const sm = SessionManager.open(filePath);
     sm.appendSessionInfo(name.trim());
     invalidateSessionListCache();
@@ -204,6 +213,12 @@ export async function DELETE(
     const filePath = await resolveSessionPath(id);
     if (!filePath) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+    if (isChatManagedSessionPath(filePath)) {
+      return NextResponse.json(
+        { error: "Chat-managed pi sessions are read-only evidence" },
+        { status: 403 },
+      );
     }
 
     // Read only the bounded header before deleting.

@@ -2,8 +2,9 @@
 
 import { useSyncExternalStore } from "react";
 
-// Mobile breakpoint shared with app/globals.css (max-width: 640px).
-const MOBILE_QUERY = "(max-width: 640px)";
+// Shared with app/globals.css. The second clause keeps a phone in compact
+// mode when landscape width exceeds 768px.
+export const MOBILE_QUERY = "(max-width: 768px), (hover: none) and (pointer: coarse) and (max-height: 500px)";
 
 function subscribe(cb: () => void): () => void {
   if (typeof window === "undefined" || !window.matchMedia) return () => {};

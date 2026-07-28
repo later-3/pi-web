@@ -12,6 +12,9 @@ import {
 } from "@/lib/file-paths";
 import type { GitFileStatus, GitFileStatusKind, GitStatusResponse } from "@/lib/git-types";
 import { useI18n } from "@/hooks/useI18n";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { IconAt, IconDotsVertical, IconDownload, IconX } from "@tabler/icons-react";
+
 type Translate = ReturnType<typeof useI18n>["t"];
 
 interface FileEntry {
@@ -236,6 +239,7 @@ function TreeNode({
   changedDirectoryPaths: Set<string>;
   t: Translate;
 }) {
+  const isMobile = useIsMobile();
   const open = expandedPaths.has(node.fullPath);
   const highlighted = highlightedPaths.has(node.fullPath);
   const normalizedPath = normalizeFilePathSlashes(node.fullPath);
@@ -247,6 +251,7 @@ function TreeNode({
   const [loaded, setLoaded] = useState(node.loaded ?? false);
   const [loading, setLoading] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
 
   const loadChildren = useCallback(async (force = false) => {
     if (loaded && !force) return;
@@ -293,7 +298,7 @@ function TreeNode({
           gap: 4,
           paddingLeft: 8 + depth * 14,
           paddingRight: 8,
-          height: 24,
+          height: isMobile ? 44 : 24,
           cursor: "pointer",
           background: hovered ? "var(--bg-hover)" : "transparent",
           borderRadius: 4,
@@ -359,7 +364,7 @@ function TreeNode({
             <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" />
           </svg>
         )}
-        {onAtMention && hovered && (
+        {onAtMention && hovered && !isMobile && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -391,7 +396,7 @@ function TreeNode({
             {t("files.mention")}
           </button>
         )}
-        {hovered && !node.isDir && (
+        {hovered && !isMobile && !node.isDir && (
           <a
             href={`/api/files/${encodeFilePathForApi(node.fullPath)}?type=download`}
             download
@@ -425,6 +430,93 @@ function TreeNode({
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
           </a>
+        )}
+        {isMobile && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setMobileActionsOpen(true);
+            }}
+            aria-label={`File actions for ${node.name}`}
+            title="File actions"
+            style={{
+              width: 44,
+              height: 44,
+              marginRight: -8,
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              color: "var(--text-muted)",
+              background: "transparent",
+              border: "none",
+              borderRadius: 8,
+            }}
+          >
+            <IconDotsVertical size={18} stroke={1.8} aria-hidden="true" />
+          </button>
+        )}
+        {isMobile && mobileActionsOpen && (
+          <>
+            <button
+              type="button"
+              className="mobile-action-backdrop"
+              onClick={(event) => {
+                event.stopPropagation();
+                setMobileActionsOpen(false);
+              }}
+              aria-label="Close file actions"
+            />
+            <div className="mobile-action-sheet" role="dialog" aria-modal="true" aria-label={`File actions for ${node.name}`}>
+              <div className="mobile-action-sheet-header">
+                <div>
+                  <strong>{node.name}</strong>
+                  <span>{node.isDir ? "Folder" : "File"}</span>
+                </div>
+                <button
+                  type="button"
+                  className="mobile-icon-button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setMobileActionsOpen(false);
+                  }}
+                  aria-label="Close file actions"
+                >
+                  <IconX size={22} stroke={1.8} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="mobile-action-grid">
+                {onAtMention && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setMobileActionsOpen(false);
+                      onAtMention(getRelativeFilePath(node.fullPath, cwd), node.isDir);
+                    }}
+                  >
+                    <IconAt size={21} stroke={1.7} aria-hidden="true" />
+                    <span>Insert into chat</span>
+                  </button>
+                )}
+                {!node.isDir && (
+                  <a
+                    href={`/api/files/${encodeFilePathForApi(node.fullPath)}?type=download`}
+                    download
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setMobileActionsOpen(false);
+                    }}
+                  >
+                    <IconDownload size={21} stroke={1.7} aria-hidden="true" />
+                    <span>Download file</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          </>
         )}
       </div>
       {node.isDir && open && (
