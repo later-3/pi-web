@@ -44,11 +44,15 @@ gh repo view later-3/pi-web --json nameWithOwner,visibility,isPrivate,url
 git remote -v
 ```
 
-### P1：Linux 部署尚未在目标机验收
+### P1：上游生产依赖仍有 4 个 High 审计项
+
+2026-07-30 的 `npm audit --omit=dev` 显示：Pi SDK 子树的 `brace-expansion@5.0.7` 命中 DoS 公告；Next `16.2.12` 内嵌的 PostCSS `8.4.31` 和 sharp `0.34.5` 也命中公告，并将 `next` 一并计为 High。npm 给出的 `--force` 方案会错误地降到 Next 9，不能采用。`brace-expansion@5.0.8` 虽已发布，但 npm 的嵌套 override 实验未改变实际依赖树，Bun 也不支持同一写法，因此没有保留“表面修复”。这些项必须等待 Pi SDK/Next 或主仓的兼容升级，并在部署前重新审计。
+
+### P2：Linux 部署尚未在目标机验收
 
 [Linux 部署手册](./docs/linux-deployment.zh-CN.md) 已给出无敏感值的完整步骤，但仍需在实际服务器验证 Node 路径、systemd 用户权限、反向代理、模型凭据和 Web Push。
 
-### P2：每日检查只自动发现，不自动合并
+### P3：每日检查只自动发现，不自动合并
 
 运行 `./scripts/check-upstream.sh` 会抓取并报告主仓差异，但不会改分支。自动合并容易在 PWA、依赖锁、移动 CSS 和部署脚本上静默覆盖自研行为，因此合并必须按 [维护与故障案例手册](./docs/maintenance-playbook.zh-CN.md) 人工验收。
 
