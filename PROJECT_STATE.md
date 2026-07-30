@@ -30,6 +30,22 @@
 
 完整入口见 [自研功能与配置清单](./docs/later-customizations.zh-CN.md)。
 
+## 2026-07-30 双设备部署记录
+
+| 项目 | 当前事实 |
+|---|---|
+| 第二台设备 | `pop-os`，Pop!_OS 24.04 LTS，x86_64 |
+| 部署 commit | `2679fd4f3fca5bc52b6f96f3be688e948713102d` |
+| 运行环境 | Node `22.22.2`、npm `10.9.7`、Nginx `1.24.0` |
+| 代码与数据 | `/home/later/Code/pi-web`、`/home/later/.pi/agent` |
+| 服务 | `pi-web.service` 与 `nginx.service` 均为 `enabled + active` |
+| 访问入口 | LAN `http://192.168.1.68`；Next.js 仅监听 `127.0.0.1:30141` |
+| 设备身份 | `linux-home / Pop!_OS`，与 `mac-main / Main Mac` 互相可见 |
+| 凭据边界 | 复用应用登录账号文件；远端独立生成 Cookie 签名密钥；未复制 Provider/OAuth 凭据 |
+| 验证证据 | production build、loopback/LAN health、登录/登出、双向 `/api/devices`、systemd restart 均通过 |
+
+当前 Mac 也已重新构建并安装包含多设备入口的 `.next-mobile`；本机、云端 SSH relay、Nginx、Cloudflare 公网登录与两个账号的 Cookie 验证全部通过。
+
 ## 已解决的仓库风险
 
 2026-07-30 已将 `later-3/pi-web` 从 PUBLIC 改为 **PRIVATE**，并用 GitHub API 验证 `isPrivate=true`。每次推送 Later-only 工作前仍要复核：
@@ -47,17 +63,17 @@ Private 只解决仓库访问范围，不替代秘密管理。`deploy/secrets/`�
 
 2026-07-30 的 `npm audit --omit=dev` 显示：Pi SDK 子树的 `brace-expansion@5.0.7` 命中 DoS 公告；Next `16.2.12` 内嵌的 PostCSS `8.4.31` 和 sharp `0.34.5` 也命中公告，并将 `next` 一并计为 High。npm 给出的 `--force` 方案会错误地降到 Next 9，不能采用。`brace-expansion@5.0.8` 虽已发布，但 npm 的嵌套 override 实验未改变实际依赖树，Bun 也不支持同一写法，因此没有保留“表面修复”。这些项必须等待 Pi SDK/Next 或主仓的兼容升级，并在部署前重新审计。
 
-### P2：Linux 部署尚未在目标机验收
+### P2：Linux LAN 部署已验收，独立 HTTPS 入口待配置
 
-[Linux 部署手册](./docs/linux-deployment.zh-CN.md) 已给出无敏感值的完整步骤，但仍需在实际服务器验证 Node 路径、systemd 用户权限、反向代理、模型凭据和 Web Push。
+Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录与服务重启已验证。当前入口是局域网 HTTP，只用于一期功能打通；installed PWA、安全上下文和 Web Push 必须等该设备拥有可信 HTTPS origin 后验收。Provider/OAuth 凭据尚未迁移，按需在远端受保护 Web UI 中配置。
 
 ### P3：每日检查只自动发现，不自动合并
 
 运行 `./scripts/check-upstream.sh` 会抓取并报告主仓差异，但不会改分支。自动合并容易在 PWA、依赖锁、移动 CSS 和部署脚本上静默覆盖自研行为，因此合并必须按 [维护与故障案例手册](./docs/maintenance-playbook.zh-CN.md) 人工验收。
 
-### P4：多设备一期尚待两台真机验收
+### P4：双设备服务端闭环已完成，手机跨 origin 场景待真机验收
 
-[多设备 ADR](./docs/multi-device-architecture.zh-CN.md) 的直连目录、API、桌面/手机入口和 Mac/Linux 配置链路已完成；跨 origin 的 installed PWA、分别登录、运行中切换、离线目标和双设备 Push 仍需第二台真实机器验收。单 origin 网关、中心认证/Push 和 heartbeat 属于 Phase 2，不应在一期用共享父域 Cookie 或客户端逐台轮询替代。
+[多设备 ADR](./docs/multi-device-architecture.zh-CN.md) 的直连目录、API、桌面/手机入口和 Mac/Linux 配置链路已在两台真实设备完成服务端验收。Safari/installed PWA 的跨 origin 跳转、运行中切换、目标离线、独立 HTTPS 与双设备 Push 仍需手机真机验收。单 origin 网关、中心认证/Push 和 heartbeat 属于 Phase 2，不应在一期用共享父域 Cookie 或客户端逐台轮询替代。
 
 ## 下一次更新本文件时至少记录
 

@@ -200,6 +200,20 @@ git push -u origin codex/later-custom
 - 修复：导出路由把递归 helper 替换为迭代实现。
 - 防复发：保留深线性 Session 样本；更新上游导出 helper 后重新核对补丁是否仍需要。
 
+### 3.13 私仓 `ls-remote` 成功但首次 clone 没有 HEAD
+
+- 症状：GitHub Deploy Key 已验证、`git ls-remote` 能看到目标 commit，但首次 clone 长时间无输出，只留下 `.git` 和 `master` 空分支。
+- 根因证据：SSH publickey 认证与 `git-upload-pack` 均成功，问题发生在 pack 传输/检出阶段，不是仓库权限；目标目录没有可验证 HEAD。
+- 修复：先用 `git rev-parse --verify HEAD` 确认目录确实是本次产生的空 clone，再设置精确 fetch refspec 并继续 `git fetch`；本机同时可生成 `git bundle`，经 `git bundle verify` 后作为局域网离线后备。最终必须核对完整 commit SHA 和 clean status，再设置私仓 origin。
+- 防复发：不要看到 `.git` 就删除目录，也不要把 `ls-remote` 成功误判为完整 clone 成功；Deploy Key 保持只读，部署固定完整 SHA。
+
+### 3.14 远端 `npm ci` 长时间无输出或 SSH 不退出
+
+- 症状：冷安装数分钟没有新终端输出，看似卡死；远端命令实际完成后 SSH 连接仍可能暂时不退出。
+- 根因证据：Pop!_OS 首次安装 1194 个包耗时约 12 分钟，期间 `node_modules` 从 1.3 GiB 增长到 1.7 GiB、npm 持续占用 CPU；最终 npm debug log 为 `exit 0 / info ok`。
+- 修复：用 `ps`、目录大小、文件数和最新 npm log 判断是否前进；确认 npm 进程消失、`node_modules/.bin/next` 存在、lockfile 未变且日志 exit 0 后，才关闭空闲 SSH 连接并进入构建。
+- 防复发：不能因为 30 秒无输出就并发重跑 `npm ci`；冷缓存部署给足时间，构建与安装保持串行，并保留 `npm ci --no-audit --no-fund` 的确定性参数。
+
 ## 4. 新案例模板
 
 ```markdown

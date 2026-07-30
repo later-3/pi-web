@@ -13,6 +13,17 @@ Pi Web 的电脑端和手机端共用 Mac 上的同一个 production 进程。�
 - 手机访问：<https://pi.ai4child.asia>
 - Mac 必须开机、联网并保持当前用户已登录；PWA 本身不提供离线后端。
 
+## 当前第二台设备
+
+2026-07-30 已部署 `linux-home / Pop!_OS`：
+
+- 同一局域网入口：<http://192.168.1.68>
+- Mac 与 Pop!_OS 的设备菜单都能列出 `mac-main` 和 `linux-home`。
+- 两边使用相同的应用登录账号列表，但使用不同的 Cookie 签名密钥。
+- Pop!_OS 当前入口是过渡性的 LAN HTTP，不支持 installed PWA/Web Push；公网与可信 HTTPS 仍由 Mac 的 <https://pi.ai4child.asia> 提供。
+
+当前设备目录分别保存在 Mac 的 `deploy/devices.local.json` 和 Pop!_OS 的 `~/.config/pi-web/devices.json`，两者权限/提交策略不同：前者被 Git 忽略，后者只允许运行用户读取，均不包含密码或 Token。
+
 ## 启动架构
 
 ```text
