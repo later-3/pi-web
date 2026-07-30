@@ -43,7 +43,10 @@ async function runWithViewTransition(update: () => Promise<void>): Promise<void>
     return;
   }
   const transition = document.startViewTransition(update);
-  await transition.finished;
+  // The DOM update is authoritative even when the browser declines or aborts
+  // the visual transition (for example after losing visibility mid-switch).
+  // Do not turn a cosmetic transition failure into a device-switch failure.
+  await transition.finished.catch(() => undefined);
 }
 
 export function useDeviceWorkspace(
@@ -63,7 +66,6 @@ export function useDeviceWorkspace(
   });
   const [switchError, setSwitchError] = useState<string | null>(null);
   const switchLockRef = useRef(false);
-  const readyResolverRef = useRef<(() => void) | null>(null);
   const readyTimerRef = useRef<number | null>(null);
 
   const effectiveDirectory = useMemo(() => {
@@ -110,15 +112,10 @@ export function useDeviceWorkspace(
           "",
           workspaceUrlFromNavigation(nextSnapshot.navigation),
         );
-        const ready = new Promise<void>((resolve) => {
-          readyResolverRef.current = resolve;
-          readyTimerRef.current = window.setTimeout(() => {
-            readyTimerRef.current = null;
-            readyResolverRef.current = null;
-            setTransition({ phase: "idle", targetDeviceId: null, targetDeviceName: null });
-            resolve();
-          }, DEVICE_WORKSPACE_READY_TIMEOUT_MS);
-        });
+        readyTimerRef.current = window.setTimeout(() => {
+          readyTimerRef.current = null;
+          setTransition({ phase: "idle", targetDeviceId: null, targetDeviceName: null });
+        }, DEVICE_WORKSPACE_READY_TIMEOUT_MS);
         setWorkspace((current) => ({
           deviceId: device.id,
           directory: nextDirectory,
@@ -126,7 +123,9 @@ export function useDeviceWorkspace(
           snapshot: nextSnapshot,
         }));
         setTransition({ phase: "loading", targetDeviceId: device.id, targetDeviceName: device.name });
-        await ready;
+        // Resolve the View Transition callback after React has committed the
+        // target workspace's first paint. Data readiness remains governed by
+        // markWorkspaceReady/the bounded timer outside the visual transaction.
         await waitForReactPaint();
       } catch (error) {
         const restoredSnapshot = loadDeviceWorkspaceSnapshot(window.sessionStorage, currentDeviceId)
@@ -148,12 +147,9 @@ export function useDeviceWorkspace(
   const markWorkspaceReady = useCallback(() => {
     if (readyTimerRef.current) window.clearTimeout(readyTimerRef.current);
     readyTimerRef.current = null;
-    const resolve = readyResolverRef.current;
-    readyResolverRef.current = null;
     setTransition((current) => current.phase === "loading"
       ? { phase: "idle", targetDeviceId: null, targetDeviceName: null }
       : current);
-    resolve?.();
   }, []);
 
   return {

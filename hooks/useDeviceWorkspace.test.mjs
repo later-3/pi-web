@@ -16,7 +16,9 @@ test("unmounts the old workspace before changing the gateway preference", () => 
 test("keeps the real previous workspace visible during a supported async switch", () => {
   assert.match(source, /"startViewTransition" in document/);
   assert.match(source, /document\.startViewTransition\(update\)/);
-  assert.match(source, /await ready/);
+  assert.match(source, /transition\.finished\.catch\(\(\) => undefined\)/);
+  assert.doesNotMatch(source, /await ready/);
+  assert.match(source, /target workspace's first paint/);
   assert.match(source, /prefers-reduced-motion: reduce/);
 });
 
