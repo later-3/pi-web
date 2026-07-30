@@ -10,6 +10,19 @@ Typecheck: `node_modules/.bin/tsc --noEmit`
 Lint: `npm run lint`  
 **Never run `next build` during dev** — pollutes `.next/` and breaks `npm run dev`.
 
+## Project Recovery & Maintenance
+
+Before substantial work, read `PROJECT_STATE.md` and the relevant document:
+
+- `docs/later-customizations.zh-CN.md` — Later-only features, configuration, and invariants
+- `docs/linux-deployment.zh-CN.md` — clean Linux deployment and rollback
+- `docs/maintenance-playbook.zh-CN.md` — upstream sync procedure and recurring incident cases
+- `docs/pi-web-service.zh-CN.md` — current Mac/mobile production operations
+
+Run `./scripts/check-upstream.sh` before the first development session of the day or whenever upstream sync is requested. The check may fetch, but it must never auto-merge. Save a dirty worktree as reviewed commits before merging `upstream/main`, then update `PROJECT_STATE.md` with the upstream commit and validation evidence.
+
+Before pushing Later-only work, verify that `origin` is the intended private repository. Do not rely on the repository name or owner as proof of visibility.
+
 ---
 
 ## Architecture

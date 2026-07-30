@@ -51,6 +51,10 @@ pi-web
 The credentials file uses `{"credentials":[{"username":"name","password":"secret"}]}` and should have mode `600`. The legacy `PI_WEB_AUTH_USERNAME` + `PI_WEB_AUTH_PASSWORD_FILE` single-account settings remain supported, but cannot be combined with the multi-account file. Application authentication is disabled unless auth settings are present. When enabled, `/login` creates a signed HttpOnly session cookie bound to the matching account; set `PI_WEB_AUTH_REQUIRED=1` in public deployments so missing credentials fail closed. Pi Web can invoke a high-privilege agent, so do not expose it through plain HTTP or without a trusted HTTPS reverse proxy.
 API requests accept loopback names, IP literals, the selected bind hostname, and exact comma-separated names in `PI_WEB_ALLOWED_HOSTS`. Configure that variable when a trusted reverse proxy uses a different external hostname.
 
+### Later fork operations
+
+The long-lived Later branch keeps its current upstream baseline in [`PROJECT_STATE.md`](./PROJECT_STATE.md). Its [custom feature/configuration inventory](./docs/later-customizations.zh-CN.md), [Linux deployment guide](./docs/linux-deployment.zh-CN.md), and [upstream sync/incident playbook](./docs/maintenance-playbook.zh-CN.md) are maintained in Chinese. Run `./scripts/check-upstream.sh` for a read-only drift check before merging upstream changes.
+
 ## HTTP Proxy
 
 Pi Web reads the standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables for server-side model and API requests.
@@ -109,6 +113,7 @@ Common checks:
 ```bash
 node_modules/.bin/tsc --noEmit
 npm run lint
+node --test lib/*.test.mjs components/*.test.mjs hooks/*.test.mjs
 ```
 
 Avoid running `next build` / `npm run build` during local development. It writes to `.next/` and can interfere with the dev server; leave builds for release work.

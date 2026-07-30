@@ -60,6 +60,19 @@ API 请求仅接受 loopback 名称、IP 字面量、当前监听主机名，以
 
 电脑访问 <http://127.0.0.1:30141>，手机访问 <https://pi.ai4child.asia>。首次安装、停止/重启、日志、所有脚本和云服务器排障命令见 [Pi Web 启动与手机服务器操作手册](./docs/pi-web-service.zh-CN.md)。
 
+### Later 分支维护入口
+
+- 当前上游基线、验证结果和待办：[项目状态](./PROJECT_STATE.md)
+- 自研功能、环境变量和不能破坏的行为：[Later 自研功能与配置清单](./docs/later-customizations.zh-CN.md)
+- 在一台新 Linux 服务器从零搭建：[Linux 部署手册](./docs/linux-deployment.zh-CN.md)
+- 每日检查上游、合并、提交、推送和高频故障案例：[维护与故障案例手册](./docs/maintenance-playbook.zh-CN.md)
+
+只检查主仓是否有更新，不改当前分支：
+
+```bash
+./scripts/check-upstream.sh
+```
+
 ## HTTP 代理
 
 Pi Web 的服务端模型请求和 API 请求会读取标准的 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY` 环境变量。
@@ -120,6 +133,7 @@ npm run dev
 ```bash
 node_modules/.bin/tsc --noEmit
 npm run lint
+node --test lib/*.test.mjs components/*.test.mjs hooks/*.test.mjs
 ```
 
 开发时不要运行 `next build` / `npm run build`，它会写入 `.next/`，容易影响正在运行的 dev server。发布流程再执行构建。
