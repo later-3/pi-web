@@ -7,6 +7,7 @@
 | 项目 | 当前值 |
 |---|---|
 | 开发分支 | `codex/later-custom` |
+| Later 远端 | `origin = https://github.com/later-3/pi-web.git`，GitHub 可见性 `PRIVATE` |
 | 上游仓库 | `upstream = https://github.com/agegr/pi-web.git` |
 | 已合入上游 | `upstream/main@7672aa0`，发布版本 `0.8.4` |
 | 上游合并提交 | `d49075c` |
@@ -28,21 +29,18 @@
 
 完整入口见 [自研功能与配置清单](./docs/later-customizations.zh-CN.md)。
 
-## 当前待办与风险
+## 已解决的仓库风险
 
-### P0：私库状态不符合预期
-
-2026-07-30 使用 GitHub API 核对时，`origin = later-3/pi-web` 的可见性是 **PUBLIC**，不是预期的 private。完成以下任一项前，不应继续向 `origin` 推送包含新增部署细节的提交：
-
-1. 将 `later-3/pi-web` 改为 private；或
-2. 把 `origin` 切换到确认过的私有仓库。
-
-更改后必须再次执行：
+2026-07-30 已将 `later-3/pi-web` 从 PUBLIC 改为 **PRIVATE**，并用 GitHub API 验证 `isPrivate=true`。每次推送 Later-only 工作前仍要复核：
 
 ```bash
 gh repo view later-3/pi-web --json nameWithOwner,visibility,isPrivate,url
 git remote -v
 ```
+
+Private 只解决仓库访问范围，不替代秘密管理。`deploy/secrets/`、`.env*`、密码、Cookie、Token、API Key、VAPID 私钥和会话签名密钥继续由 `.gitignore` 排除；仓库只保存配置模板、变量名、安装脚本和操作说明。
+
+## 当前待办与风险
 
 ### P1：上游生产依赖仍有 4 个 High 审计项
 
