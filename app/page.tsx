@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { AppShell } from "@/components/AppShell";
+import { DeviceWorkspaceRoot } from "@/components/DeviceWorkspaceRoot";
 import { AuthSessionMonitor } from "@/components/AuthSessionMonitor";
 import { I18nProvider } from "@/hooks/useI18n";
 
@@ -8,7 +8,7 @@ export default function Home() {
     <Suspense>
       <AuthSessionMonitor />
       <I18nProvider>
-        <AppShell />
+        <DeviceWorkspaceRoot />
       </I18nProvider>
     </Suspense>
   );

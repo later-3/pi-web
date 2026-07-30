@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { SessionSidebar } from "./SessionSidebar";
 import { ChatWindow } from "./ChatWindow";
@@ -17,7 +17,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { useI18n } from "@/hooks/useI18n";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
-import { useDeviceDirectory } from "@/hooks/useDeviceDirectory";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { MobileDebugOverlay } from "./MobileDebugOverlay";
 import { MobileWorkspaceHeader } from "./MobileWorkspaceHeader";
@@ -25,7 +24,6 @@ import { DeviceSwitcher } from "./DeviceSwitcher";
 import { copyText } from "@/lib/clipboard";
 import { getFileName } from "@/lib/file-paths";
 import { buildAtMentionText, buildFileAtMentionsText, buildFileLineMentionText } from "@/lib/file-fuzzy";
-import { getInitialNavigation } from "@/lib/initial-navigation";
 import {
   getDefaultRightPanelWidth,
   getRightPanelMaxWidth,
@@ -39,6 +37,9 @@ import {
 } from "@/lib/panel-layout";
 import type { SessionInfo, SessionTreeNode } from "@/lib/types";
 import type { ProjectTrustStatus } from "@/lib/api-types";
+import type { DeviceDescriptor, DeviceDirectoryResponse } from "@/lib/device-directory-core";
+import type { InitialNavigation } from "@/lib/initial-navigation";
+import type { DeviceWorkspaceSnapshot } from "@/lib/device-workspace";
 import type { ChatInputHandle } from "./ChatInput";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 
@@ -52,14 +53,27 @@ type AutoNameStatus =
 const TOP_BAR_ICON_BUTTON_SIZE = 36;
 const LANGUAGE_MENU_WIDTH = 176;
 
-export function AppShell() {
+interface AppShellProps {
+  deviceDirectory: DeviceDirectoryResponse | null;
+  initialNavigation: InitialNavigation;
+  initialWorkspaceSnapshot: DeviceWorkspaceSnapshot;
+  onDeviceNavigate: (device: DeviceDescriptor) => void | Promise<void>;
+  onWorkspaceReady: () => void;
+  onWorkspaceSnapshot: (snapshot: DeviceWorkspaceSnapshot) => void;
+}
+
+export function AppShell({
+  deviceDirectory,
+  initialNavigation,
+  initialWorkspaceSnapshot,
+  onDeviceNavigate,
+  onWorkspaceReady,
+  onWorkspaceSnapshot,
+}: AppShellProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [initialNavigation] = useState(() => getInitialNavigation(searchParams));
   const { isDark, toggleTheme } = useTheme();
   const { locale, setLocale, t: translate, supportedLocales } = useI18n();
   const isMobile = useIsMobile();
-  const { directory: deviceDirectory } = useDeviceDirectory();
   useVisualViewport(); // CSS owns the resting viewport; JS adapts only to the keyboard.
   const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
   // When user clicks +, we only store the cwd — no fake session id
@@ -83,7 +97,9 @@ export function AppShell() {
   const [mobileDebugOpen, setMobileDebugOpen] = useState(false);
   const [mobileUtilitiesOpen, setMobileUtilitiesOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [rightPanelOpen, setRightPanelOpen] = useState(
+    () => initialWorkspaceSnapshot.rightPanelOpen,
+  );
   const [mobileSidebarReady, setMobileSidebarReady] = useState(false);
   const sidebarWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const rightPanelWidthRef = useRef(RIGHT_PANEL_FALLBACK_WIDTH);
@@ -263,8 +279,24 @@ export function AppShell() {
   }, [activeTopPanel, isMobile]);
 
   // Right panel — file tabs only
-  const [fileTabs, setFileTabs] = useState<Tab[]>([]);
-  const [activeFileTabId, setActiveFileTabId] = useState<string | null>(null);
+  const [fileTabs, setFileTabs] = useState<Tab[]>(
+    () => initialWorkspaceSnapshot.fileTabs.map((tab) => ({ ...tab })),
+  );
+  const [activeFileTabId, setActiveFileTabId] = useState<string | null>(
+    () => initialWorkspaceSnapshot.activeFileTabId,
+  );
+  const workspaceSnapshotRef = useRef<DeviceWorkspaceSnapshot>(initialWorkspaceSnapshot);
+  const onWorkspaceSnapshotRef = useRef(onWorkspaceSnapshot);
+  onWorkspaceSnapshotRef.current = onWorkspaceSnapshot;
+  workspaceSnapshotRef.current = {
+    navigation: initialNavigation,
+    fileTabs,
+    activeFileTabId,
+    rightPanelOpen,
+  };
+  useEffect(() => () => {
+    onWorkspaceSnapshotRef.current(workspaceSnapshotRef.current);
+  }, []);
 
   // Same @mention format as the chat input's @ autocomplete, so the agent's
   // read tool resolves it the same way (it strips the @ prefix).
@@ -649,6 +681,7 @@ export function AppShell() {
         initialSessionId={initialSessionId}
         skipInitialProjectSelection={initialNavigation.requestedCwd !== null}
         onInitialRestoreDone={handleInitialRestoreDone}
+        onReady={onWorkspaceReady}
         refreshKey={refreshKey}
         onSessionDeleted={handleSessionDeleted}
         selectedCwd={selectedSession?.cwd ?? newSessionCwd ?? null}
@@ -882,6 +915,7 @@ export function AppShell() {
             cwd={selectedSession?.cwd ?? activeCwd ?? effectiveNewSessionCwd}
             rightPanelOpen={rightPanelOpen}
             deviceDirectory={deviceDirectory}
+            onDeviceNavigate={onDeviceNavigate}
             isDark={isDark}
             onNewSession={(cwd) => handleNewSession(`mobile-${Date.now()}`, cwd)}
             onOpenWorkspace={() => {
@@ -940,7 +974,13 @@ export function AppShell() {
               </svg>
             )}
           </button>
-          {!isMobile && <DeviceSwitcher variant="desktop" directory={deviceDirectory} />}
+          {!isMobile && (
+            <DeviceSwitcher
+              variant="desktop"
+              directory={deviceDirectory}
+              onNavigate={onDeviceNavigate}
+            />
+          )}
           <button
             onClick={(e) => {
               const rect = e.currentTarget.getBoundingClientRect();

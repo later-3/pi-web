@@ -12,7 +12,7 @@ interface Props {
   directory: DeviceDirectoryResponse | null;
   initialOpen?: boolean;
   onBeforeNavigate?: () => void;
-  onNavigate?: (device: DeviceDescriptor) => void;
+  onNavigate?: (device: DeviceDescriptor) => void | Promise<void>;
 }
 
 export function DeviceSwitcher({
@@ -55,14 +55,27 @@ export function DeviceSwitcher({
     if (device.id === directory.currentDeviceId || switchingId) return;
     setSwitchError(null);
 
+    if (onNavigate) {
+      setSwitchingId(device.id);
+      setOpen(false);
+      onBeforeNavigate?.();
+      try {
+        await onNavigate(device);
+      } catch (error) {
+        setSwitchError(error instanceof Error ? error.message : t("devices.switchFailed"));
+      } finally {
+        setSwitchingId(null);
+      }
+      return;
+    }
+
     if (directory.selectionMode === "gateway") {
       setSwitchingId(device.id);
       try {
         await selectGatewayDevice(device.id);
         setOpen(false);
         onBeforeNavigate?.();
-        if (onNavigate) onNavigate(device);
-        else window.location.assign(directory.gatewayUrl ?? "/");
+        window.location.assign(directory.gatewayUrl ?? "/");
       } catch (error) {
         setSwitchError(error instanceof Error ? error.message : t("devices.switchFailed"));
       } finally {
@@ -73,8 +86,7 @@ export function DeviceSwitcher({
 
     setOpen(false);
     onBeforeNavigate?.();
-    if (onNavigate) onNavigate(device);
-    else window.location.assign(device.url);
+    window.location.assign(device.url);
   };
 
   return (

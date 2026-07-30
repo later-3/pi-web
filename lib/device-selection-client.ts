@@ -1,3 +1,8 @@
+import {
+  isDeviceDirectoryResponse,
+  type DeviceDirectoryResponse,
+} from "./device-directory-core";
+
 export const DEVICE_SELECTION_TIMEOUT_MS = 5_000;
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -12,7 +17,7 @@ export async function selectGatewayDevice(
     fetchFn = fetch,
     timeoutMs = DEVICE_SELECTION_TIMEOUT_MS,
   }: SelectGatewayDeviceOptions = {},
-): Promise<void> {
+): Promise<{ currentDeviceId: string }> {
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
 
@@ -25,7 +30,19 @@ export async function selectGatewayDevice(
       body: JSON.stringify({ deviceId }),
       signal: controller.signal,
     });
-    if (response.ok) return;
+    if (response.ok) {
+      const payload: unknown = await response.json();
+      if (
+        !payload
+        || typeof payload !== "object"
+        || !("currentDeviceId" in payload)
+        || typeof payload.currentDeviceId !== "string"
+        || payload.currentDeviceId !== deviceId
+      ) {
+        throw new Error("Device selection response is invalid");
+      }
+      return { currentDeviceId: payload.currentDeviceId };
+    }
 
     const payload = await response.json().catch(() => null) as { error?: unknown } | null;
     const message = typeof payload?.error === "string"
@@ -37,5 +54,59 @@ export async function selectGatewayDevice(
     throw error;
   } finally {
     globalThis.clearTimeout(timeout);
+  }
+}
+
+export async function loadSelectedGatewayDevice(
+  deviceId: string,
+  {
+    fetchFn = fetch,
+    timeoutMs = DEVICE_SELECTION_TIMEOUT_MS,
+  }: SelectGatewayDeviceOptions = {},
+): Promise<DeviceDirectoryResponse> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetchFn("/api/devices", {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`Selected device is unavailable (${response.status})`);
+    const payload: unknown = await response.json();
+    if (!isDeviceDirectoryResponse(payload) || payload.currentDeviceId !== deviceId) {
+      throw new Error("Selected device returned incompatible metadata");
+    }
+    const routedDeviceId = response.headers.get("X-Pi-Web-Device");
+    if (routedDeviceId && routedDeviceId !== deviceId) {
+      throw new Error("Gateway routed the request to the wrong device");
+    }
+    return payload;
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("Selected device connection timed out");
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+}
+
+export async function switchGatewayDevice(
+  deviceId: string,
+  previousDeviceId: string,
+  options: SelectGatewayDeviceOptions = {},
+): Promise<DeviceDirectoryResponse> {
+  try {
+    await selectGatewayDevice(deviceId, options);
+    return await loadSelectedGatewayDevice(deviceId, options);
+  } catch (error) {
+    if (previousDeviceId && previousDeviceId !== deviceId) {
+      try {
+        await selectGatewayDevice(previousDeviceId, options);
+      } catch {
+        throw new Error("Unable to connect to the selected device or restore the previous device");
+      }
+    }
+    throw error;
   }
 }

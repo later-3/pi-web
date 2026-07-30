@@ -16,7 +16,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { getFileName } from "@/lib/file-paths";
-import type { DeviceDirectoryResponse } from "@/lib/device-directory-core";
+import type { DeviceDescriptor, DeviceDirectoryResponse } from "@/lib/device-directory-core";
 import type { SessionInfo } from "@/lib/types";
 import { DeviceSwitcher } from "./DeviceSwitcher";
 
@@ -25,6 +25,7 @@ interface Props {
   cwd: string | null;
   rightPanelOpen: boolean;
   deviceDirectory: DeviceDirectoryResponse | null;
+  onDeviceNavigate: (device: DeviceDescriptor) => void | Promise<void>;
   isDark: boolean;
   onNewSession: (cwd: string) => void;
   onOpenWorkspace: () => void;
@@ -46,6 +47,7 @@ export function MobileWorkspaceHeader({
   cwd,
   rightPanelOpen,
   deviceDirectory,
+  onDeviceNavigate,
   isDark,
   onNewSession,
   onOpenWorkspace,
@@ -178,6 +180,7 @@ export function MobileWorkspaceHeader({
               variant="mobile"
               directory={deviceDirectory}
               onBeforeNavigate={() => setMenuOpen(false)}
+              onNavigate={onDeviceNavigate}
             />
             <div className="mobile-action-grid">
               <button type="button" onClick={() => { setMenuOpen(false); onOpenWorkspace(); }}>

@@ -16,6 +16,7 @@ test("receives directory data as a prop instead of fetching inside the UI compon
 test("keeps current device disabled and supports gateway plus direct navigation", () => {
   assert.match(source, /disabled=\{isCurrent \|\| switchingId !== null\}/);
   assert.match(source, /selectGatewayDevice\(device\.id\)/);
+  assert.match(source, /await onNavigate\(device\)/);
   assert.match(source, /window\.location\.assign\(directory\.gatewayUrl \?\? "\/"\)/);
   assert.match(source, /window\.location\.assign\(device\.url\)/);
   assert.match(source, /aria-current=\{isCurrent \? "page" : undefined\}/);
