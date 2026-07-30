@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { DeviceDescriptor, DeviceDirectoryResponse } from "@/lib/device-directory-core";
 import { switchGatewayDevice } from "@/lib/device-selection-client";
 import type { InitialNavigation } from "@/lib/initial-navigation";
@@ -28,10 +28,22 @@ interface WorkspaceState {
   snapshot: DeviceWorkspaceSnapshot;
 }
 
-function waitForWorkspaceUnmount(): Promise<void> {
+function waitForReactPaint(): Promise<void> {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
   });
+}
+
+async function runWithViewTransition(update: () => Promise<void>): Promise<void> {
+  if (
+    !("startViewTransition" in document)
+    || window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    await update();
+    return;
+  }
+  const transition = document.startViewTransition(update);
+  await transition.finished;
 }
 
 export function useDeviceWorkspace(
@@ -51,6 +63,8 @@ export function useDeviceWorkspace(
   });
   const [switchError, setSwitchError] = useState<string | null>(null);
   const switchLockRef = useRef(false);
+  const readyResolverRef = useRef<(() => void) | null>(null);
+  const readyTimerRef = useRef<number | null>(null);
 
   const effectiveDirectory = useMemo(() => {
     const source = workspace.directory ?? directory;
@@ -76,51 +90,71 @@ export function useDeviceWorkspace(
 
     switchLockRef.current = true;
     setSwitchError(null);
-    setTransition({ phase: "switching", targetDeviceId: device.id, targetDeviceName: device.name });
 
-    // The root stops rendering the old workspace in this phase. Two frames let
-    // React run effect cleanup before the preference cookie changes, so old
-    // EventSource/fetch work cannot cross the device boundary.
-    await waitForWorkspaceUnmount();
+    const updateWorkspace = async () => {
+      setTransition({ phase: "switching", targetDeviceId: device.id, targetDeviceName: device.name });
+
+      // The root stops rendering the old workspace in this phase. Two frames let
+      // React run effect cleanup before the preference cookie changes, so old
+      // EventSource/fetch work cannot cross the device boundary. When supported,
+      // the View Transition API keeps the real previous workspace visible while
+      // this async control-plane transaction runs.
+      await waitForReactPaint();
+
+      try {
+        const nextDirectory = await switchGatewayDevice(device.id, currentDeviceId);
+        const nextSnapshot = loadDeviceWorkspaceSnapshot(window.sessionStorage, device.id)
+          ?? emptyDeviceWorkspaceSnapshot();
+        window.history.replaceState(
+          window.history.state,
+          "",
+          workspaceUrlFromNavigation(nextSnapshot.navigation),
+        );
+        const ready = new Promise<void>((resolve) => {
+          readyResolverRef.current = resolve;
+          readyTimerRef.current = window.setTimeout(() => {
+            readyTimerRef.current = null;
+            readyResolverRef.current = null;
+            setTransition({ phase: "idle", targetDeviceId: null, targetDeviceName: null });
+            resolve();
+          }, DEVICE_WORKSPACE_READY_TIMEOUT_MS);
+        });
+        setWorkspace((current) => ({
+          deviceId: device.id,
+          directory: nextDirectory,
+          epoch: current.epoch + 1,
+          snapshot: nextSnapshot,
+        }));
+        setTransition({ phase: "loading", targetDeviceId: device.id, targetDeviceName: device.name });
+        await ready;
+        await waitForReactPaint();
+      } catch (error) {
+        const restoredSnapshot = loadDeviceWorkspaceSnapshot(window.sessionStorage, currentDeviceId)
+          ?? emptyDeviceWorkspaceSnapshot(navigationFromSearch(window.location.search));
+        setWorkspace((current) => ({ ...current, epoch: current.epoch + 1, snapshot: restoredSnapshot }));
+        setTransition({ phase: "idle", targetDeviceId: null, targetDeviceName: null });
+        setSwitchError(error instanceof Error ? error.message : "Unable to switch device");
+        await waitForReactPaint();
+      }
+    };
 
     try {
-      const nextDirectory = await switchGatewayDevice(device.id, currentDeviceId);
-      const nextSnapshot = loadDeviceWorkspaceSnapshot(window.sessionStorage, device.id)
-        ?? emptyDeviceWorkspaceSnapshot();
-      window.history.replaceState(
-        window.history.state,
-        "",
-        workspaceUrlFromNavigation(nextSnapshot.navigation),
-      );
-      setWorkspace((current) => ({
-        deviceId: device.id,
-        directory: nextDirectory,
-        epoch: current.epoch + 1,
-        snapshot: nextSnapshot,
-      }));
-      setTransition({ phase: "loading", targetDeviceId: device.id, targetDeviceName: device.name });
-    } catch (error) {
-      const restoredSnapshot = loadDeviceWorkspaceSnapshot(window.sessionStorage, currentDeviceId)
-        ?? emptyDeviceWorkspaceSnapshot(navigationFromSearch(window.location.search));
-      setWorkspace((current) => ({ ...current, epoch: current.epoch + 1, snapshot: restoredSnapshot }));
-      setTransition({ phase: "idle", targetDeviceId: null, targetDeviceName: null });
-      setSwitchError(error instanceof Error ? error.message : "Unable to switch device");
+      await runWithViewTransition(updateWorkspace);
     } finally {
       switchLockRef.current = false;
     }
   }, [currentDeviceId, effectiveDirectory]);
 
   const markWorkspaceReady = useCallback(() => {
+    if (readyTimerRef.current) window.clearTimeout(readyTimerRef.current);
+    readyTimerRef.current = null;
+    const resolve = readyResolverRef.current;
+    readyResolverRef.current = null;
     setTransition((current) => current.phase === "loading"
       ? { phase: "idle", targetDeviceId: null, targetDeviceName: null }
       : current);
+    resolve?.();
   }, []);
-
-  useEffect(() => {
-    if (transition.phase !== "loading") return;
-    const timeout = window.setTimeout(markWorkspaceReady, DEVICE_WORKSPACE_READY_TIMEOUT_MS);
-    return () => window.clearTimeout(timeout);
-  }, [markWorkspaceReady, transition.phase]);
 
   return {
     currentDeviceId,
