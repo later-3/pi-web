@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "devices": [
+    {
+      "id": "mac-main",
+      "name": "Main Mac",
+      "url": "https://mac.example.com"
+    },
+    {
+      "id": "linux-home",
+      "name": "Home Linux",
+      "url": "https://linux.example.com"
+    }
+  ]
+}

@@ -46,6 +46,7 @@ next-env.d.ts
 /deploy/secrets/
 /deploy/logs/
 /deploy/state/
+/deploy/devices.local.json
 
 # local provider-request runtime records
 /.pi/provider-requests/

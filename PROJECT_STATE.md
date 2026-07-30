@@ -13,7 +13,7 @@
 | 上游合并提交 | `d49075c` |
 | Pi SDK | `0.83.0` |
 | Node.js 下限 | `22.19.0` |
-| 合并后验证 | TypeScript、ESLint、`195/195` Node tests 通过 |
+| 当前验证 | TypeScript、ESLint、`220/220` Node tests 通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
 
 ## 当前自研能力
@@ -26,6 +26,7 @@
 6. Extension 全局/Session 开关与 Provider Request 结构化查看。
 7. Chat 执行转录只读浏览、受保护的 Session/文件访问与运行状态恢复。
 8. production/relay 安装、启停、日志和端到端验证脚本。
+9. 多设备身份、受限 JSON 目录、薄 API 和桌面/手机直连切换一期基础。
 
 完整入口见 [自研功能与配置清单](./docs/later-customizations.zh-CN.md)。
 
@@ -53,6 +54,10 @@ Private 只解决仓库访问范围，不替代秘密管理。`deploy/secrets/`�
 ### P3：每日检查只自动发现，不自动合并
 
 运行 `./scripts/check-upstream.sh` 会抓取并报告主仓差异，但不会改分支。自动合并容易在 PWA、依赖锁、移动 CSS 和部署脚本上静默覆盖自研行为，因此合并必须按 [维护与故障案例手册](./docs/maintenance-playbook.zh-CN.md) 人工验收。
+
+### P4：多设备一期尚待两台真机验收
+
+[多设备 ADR](./docs/multi-device-architecture.zh-CN.md) 的直连目录、API、桌面/手机入口和 Mac/Linux 配置链路已完成；跨 origin 的 installed PWA、分别登录、运行中切换、离线目标和双设备 Push 仍需第二台真实机器验收。单 origin 网关、中心认证/Push 和 heartbeat 属于 Phase 2，不应在一期用共享父域 Cookie 或客户端逐台轮询替代。
 
 ## 下一次更新本文件时至少记录
 

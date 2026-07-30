@@ -92,6 +92,20 @@ PI_WEB_PUBLIC_HOSTNAME=none ./scripts/verify-mobile-relay.sh
 ./scripts/install-mobile-relay.sh
 ```
 
+安装脚本默认把当前机器标记为 `mac-main` / `Main Mac`，外部 URL 使用
+`https://${PI_WEB_PUBLIC_HOSTNAME}`，设备目录读取仓库内已忽略的
+`deploy/devices.local.json`。需要修改时，在运行安装脚本前传入：
+
+```bash
+PI_WEB_DEVICE_ID=mac-main \
+PI_WEB_DEVICE_NAME='Main Mac' \
+PI_WEB_PUBLIC_URL=https://mac.example.com \
+PI_WEB_DEVICES_FILE="$PWD/deploy/devices.local.json" \
+./scripts/install-mobile-relay.sh
+```
+
+目录格式见 [`deploy/devices.example.json`](../deploy/devices.example.json)。文件不存在或无效不会阻止 production 启动，只会保持单设备模式。
+
 该脚本会依次：
 
 1. 构建独立的 `.next-mobile/` production 产物。

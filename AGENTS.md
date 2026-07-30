@@ -76,6 +76,7 @@ app/api/
   models-config/catalog/route.ts  GET models.dev pricing presets
   models-config/discover/route.ts POST fetch a configured provider's upstream model list
   models-config/test/route.ts     POST test a configured model/provider
+  devices/route.ts                GET non-sensitive current/configured device directory
   plugins/route.ts                GET/POST package plugin management
   skills/route.ts                 GET/PATCH loaded skills and disable-model-invocation
   skills/install/route.ts         POST install skills through npx skills add
@@ -99,6 +100,9 @@ lib/
   types.ts            shared TypeScript types
   normalize.ts        normalizeToolCalls() — field name mismatch between file format and our types
   web-auth.ts         signed app-session tokens + auth configuration
+  device-directory-core.ts pure device validation, normalization, and limits
+  device-directory.ts environment/file adapter with bounded metadata cache
+  request-origin.ts  shared reverse-proxy-aware external origin metadata
   worktree.ts         project/worktree resolution and git worktree operations
 
 components/
@@ -118,6 +122,7 @@ components/
   FileIcons.tsx       file icon helpers
   FileViewer.tsx      file content in a tab
   TabBar.tsx          tab bar (Chat + open file tabs)
+  DeviceSwitcher.tsx desktop/mobile multi-device selector
 
 hooks/
   useAgentSession.ts  messages + streaming + SSE + fork/navigate/reconciliation logic
@@ -125,6 +130,7 @@ hooks/
   useDragDrop.ts      shared drag/drop state
   useIsMobile.ts      responsive breakpoint hook
   useTheme.ts         theme state
+  useDeviceDirectory.ts one-shot device directory fetch with timeout/abort
 ```
 
 ---
@@ -199,6 +205,13 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - Authentication is disabled for ordinary local development unless any `PI_WEB_AUTH_*` variable is present. Partial configuration fails closed with `503`.
 - Password and cookie-signing key stay in separate gitignored files. Rotating the password invalidates existing cookies through the token credential fingerprint.
 - `AuthSessionMonitor` redirects `401` fetch responses immediately and checks `/api/auth/session` every 60 seconds plus `visibilitychange`/`online`/`pageshow`, covering EventSource reconnects that hide their HTTP status.
+
+### Multi-device access
+- Phase 1 uses a bounded, non-sensitive JSON device directory plus `PI_WEB_DEVICE_*` environment metadata. Invalid configuration hides the switcher but never blocks the current device.
+- `AppShell` loads `/api/devices` once; parsing and file IO stay in `lib/device-directory*`, while `DeviceSwitcher` owns only interaction and navigation.
+- Direct cross-origin navigation is a functional bridge, not the final PWA architecture. The long-term target is a single-origin gateway with sticky routing, central auth, health aggregation, and Push brokering.
+- Do not implement runtime `/devices/<id>` path-prefix proxying inside Pi Web: Next.js `basePath` is build-time, while the app, APIs, manifest, and Service Worker use root paths.
+- Full decision, performance budgets, failure modes, and SSH deployment sequence: `docs/multi-device-architecture.zh-CN.md`.
 
 ### Completion sound
 - `hooks/useAudio.ts` stores the toggle in `localStorage` as `pi-sound-enabled` and reuses one `AudioContext`.

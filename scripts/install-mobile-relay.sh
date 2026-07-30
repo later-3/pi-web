@@ -20,6 +20,10 @@ local_port=30141
 remote_port=33041
 nginx_port=33042
 public_hostname="${PI_WEB_PUBLIC_HOSTNAME:-pi.ai4child.asia}"
+device_id="${PI_WEB_DEVICE_ID:-mac-main}"
+device_name="${PI_WEB_DEVICE_NAME:-Main Mac}"
+device_public_url="${PI_WEB_PUBLIC_URL:-https://$public_hostname}"
+devices_file="${PI_WEB_DEVICES_FILE:-$project_root/deploy/devices.local.json}"
 user_name="$(id -un)"
 user_id="$(id -u)"
 user_home="$(/usr/bin/dscl . -read "/Users/$user_name" NFSHomeDirectory | /usr/bin/awk '{print $2}')"
@@ -238,6 +242,18 @@ sed \
   -e "s|__AUTH_SESSION_SECRET_FILE__|$escaped_session_secret_file|g" \
   -e "s|__PUBLIC_HOSTNAME__|$escaped_public_hostname|g" \
   "$project_root/deploy/macos/com.later.pi-web.production.plist.in" > "$production_plist"
+
+# plutil writes user-provided values without requiring fragile XML/sed escaping.
+# A missing devices file is intentionally non-fatal: Pi Web keeps the current
+# device available and hides the switcher until a valid directory is added.
+/usr/bin/plutil -insert EnvironmentVariables.PI_WEB_DEVICE_ID \
+  -string "$device_id" "$production_plist"
+/usr/bin/plutil -insert EnvironmentVariables.PI_WEB_DEVICE_NAME \
+  -string "$device_name" "$production_plist"
+/usr/bin/plutil -insert EnvironmentVariables.PI_WEB_PUBLIC_URL \
+  -string "$device_public_url" "$production_plist"
+/usr/bin/plutil -insert EnvironmentVariables.PI_WEB_DEVICES_FILE \
+  -string "$devices_file" "$production_plist"
 
 # Relay plist.
 sed \

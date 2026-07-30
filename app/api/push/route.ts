@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { hasJsonContentType } from "@/lib/request-security";
+import { getExternalRequestOrigin } from "@/lib/request-origin";
 import {
   getPushPublicKey,
   normalizePushSubscription,
@@ -18,19 +19,6 @@ function noStoreJson(body: unknown, init?: ResponseInit): NextResponse {
   const response = NextResponse.json(body, init);
   response.headers.set("Cache-Control", "no-store");
   return response;
-}
-
-function requestOrigin(request: Request): string {
-  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim();
-  const host = request.headers.get("host");
-  if (forwardedProto === "https" && host) {
-    try {
-      return new URL(`https://${host}`).origin;
-    } catch {
-      // Fall back to the request URL below.
-    }
-  }
-  return new URL(request.url).origin;
 }
 
 function authenticatedAccount(request: Request): string | NextResponse {
@@ -68,7 +56,7 @@ export async function POST(request: Request) {
 
   const saved = savePushSubscription(account, subscription, {
     locale: body.locale,
-    vapidSubject: requestOrigin(request),
+    vapidSubject: getExternalRequestOrigin(request),
   });
   if (body.test === true) {
     try {

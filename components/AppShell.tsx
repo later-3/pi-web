@@ -17,8 +17,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { useI18n } from "@/hooks/useI18n";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
+import { useDeviceDirectory } from "@/hooks/useDeviceDirectory";
 import { MobileDebugOverlay } from "./MobileDebugOverlay";
 import { MobileWorkspaceHeader } from "./MobileWorkspaceHeader";
+import { DeviceSwitcher } from "./DeviceSwitcher";
 import { copyText } from "@/lib/clipboard";
 import { getFileName } from "@/lib/file-paths";
 import { buildAtMentionText, buildFileAtMentionsText, buildFileLineMentionText } from "@/lib/file-fuzzy";
@@ -45,6 +47,7 @@ export function AppShell() {
   const { isDark, toggleTheme } = useTheme();
   const { locale, setLocale, t: translate, supportedLocales } = useI18n();
   const isMobile = useIsMobile();
+  const { directory: deviceDirectory } = useDeviceDirectory();
   useVisualViewport(); // CSS owns the resting viewport; JS adapts only to the keyboard.
   const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
   // When user clicks +, we only store the cwd — no fake session id
@@ -796,6 +799,7 @@ export function AppShell() {
             selectedSession={selectedSession}
             cwd={selectedSession?.cwd ?? activeCwd ?? effectiveNewSessionCwd}
             rightPanelOpen={rightPanelOpen}
+            deviceDirectory={deviceDirectory}
             isDark={isDark}
             onNewSession={(cwd) => handleNewSession(`mobile-${Date.now()}`, cwd)}
             onOpenWorkspace={() => {
@@ -854,6 +858,7 @@ export function AppShell() {
               </svg>
             )}
           </button>
+          {!isMobile && <DeviceSwitcher variant="desktop" directory={deviceDirectory} />}
           <button
             onClick={(e) => {
               const rect = e.currentTarget.getBoundingClientRect();

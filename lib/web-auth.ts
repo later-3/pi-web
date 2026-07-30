@@ -1,4 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { isExternalRequestSecure } from "./request-origin";
 import { readFileSync } from "node:fs";
 
 export const WEB_AUTH_COOKIE = "pi-web-session";
@@ -259,8 +260,7 @@ export function getWebAuthSubject(request: Request): string | null {
 }
 
 export function isSecureWebAuthRequest(request: Request): boolean {
-  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim();
-  return forwardedProto === "https" || new URL(request.url).protocol === "https:";
+  return isExternalRequestSecure(request);
 }
 
 export function sanitizeWebAuthNext(value: string | null | undefined): string {

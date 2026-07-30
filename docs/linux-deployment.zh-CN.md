@@ -112,8 +112,14 @@ PI_WEB_AUTH_SESSION_SECRET_FILE=/home/piweb/.config/pi-web/session-secret
 PI_WEB_AUTH_SESSION_DAYS=30
 PI_CODING_AGENT_DIR=/home/piweb/.pi/agent
 PI_WEB_PUSH_SUBJECT=mailto:admin@example.com
+PI_WEB_DEVICE_ID=linux-home
+PI_WEB_DEVICE_NAME=Home Linux
+PI_WEB_PUBLIC_URL=https://linux.example.com
+PI_WEB_DEVICES_FILE=/home/piweb/.config/pi-web/devices.json
 NO_PROXY=localhost,127.0.0.1
 ```
+
+多设备目录可从 [`deploy/devices.example.json`](../deploy/devices.example.json) 复制到 `/home/piweb/.config/pi-web/devices.json`，再写入实际设备的非敏感 `id/name/url`。文件权限建议 `600`；真实密码和密钥不属于该目录。只有一台设备时可以省略全部 `PI_WEB_DEVICE_*` 与 `PI_WEB_DEVICES_FILE`，UI 会自动保持原来的单机模式。
 
 若模型请求需要代理，再加入 `HTTP_PROXY`/`HTTPS_PROXY`。Provider API key、OAuth 和模型配置保存在运行用户的 Pi agent 目录中，可通过受保护的 Web UI 配置或从旧机器安全迁移；不要写进仓库或 systemd unit。
 
@@ -210,6 +216,7 @@ curl --silent --head https://pi.example.com/login
 8. 安装 PWA 后图标、主题、安全区和键盘布局正常。
 9. 用户主动开启通知后收到测试 Push 和一次真实完成 Push。
 10. 重启服务器后 Pi Web 自动恢复，Session 文件仍在。
+11. 配置多设备时，`/api/devices` 返回当前设备和目标设备，桌面/手机切换入口出现。
 
 Linux 上没有仓库内的 macOS LaunchAgent/SSH relay，`scripts/manage-pi-web.sh` 不适用；使用 `systemctl`、`journalctl` 和本手册的健康检查。
 
@@ -236,3 +243,5 @@ curl --fail --silent http://127.0.0.1:30141/api/health
 - 需要继续开发的项目仓库与未推送分支。
 
 `.next-mobile/`、`node_modules/` 和日志可重建，不应替代源码 commit 与配置备份。
+
+通过局域网 SSH 部署第二台真实机器的探测、安装、隧道和验收分层见 [多设备 ADR 第 10 节](./multi-device-architecture.zh-CN.md#10-通过局域网-ssh-部署第二台机器)。
