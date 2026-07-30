@@ -9,11 +9,11 @@
 | 开发分支 | `codex/later-custom` |
 | Later 远端 | `origin = https://github.com/later-3/pi-web.git`，GitHub 可见性 `PRIVATE` |
 | 上游仓库 | `upstream = https://github.com/agegr/pi-web.git` |
-| 已合入上游 | `upstream/main@7672aa0`，发布版本 `0.8.4` |
-| 上游合并提交 | `d49075c` |
+| 已合入上游 | `upstream/main@9d1721f`，发布版本 `0.8.4` |
+| 上游合并提交 | `d700491` |
 | Pi SDK | `0.83.0` |
 | Node.js 下限 | `22.19.0` |
-| 当前验证 | TypeScript、ESLint、`220/220` Node tests 通过 |
+| 当前验证 | TypeScript、ESLint、`235/235` Node tests 通过；公网同源双设备路由验收通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
 
 ## 当前自研能力
@@ -26,7 +26,7 @@
 6. Extension 全局/Session 开关与 Provider Request 结构化查看。
 7. Chat 执行转录只读浏览、受保护的 Session/文件访问与运行状态恢复。
 8. production/relay 安装、启停、日志和端到端验证脚本。
-9. 多设备身份、受限 JSON 目录、薄 API 和桌面/手机直连切换一期基础。
+9. 多设备身份、受限 JSON 目录、同源粘性网关，以及桌面/手机在一个界面内切换执行设备。
 
 完整入口见 [自研功能与配置清单](./docs/later-customizations.zh-CN.md)。
 
@@ -35,16 +35,17 @@
 | 项目 | 当前事实 |
 |---|---|
 | 第二台设备 | `pop-os`，Pop!_OS 24.04 LTS，x86_64 |
-| 部署 commit | `2679fd4f3fca5bc52b6f96f3be688e948713102d` |
+| 部署 commit | `535925de4b32ef2374076750878a8757c5a2ad37` |
 | 运行环境 | Node `22.22.2`、npm `10.9.7`、Nginx `1.24.0` |
 | 代码与数据 | `/home/later/Code/pi-web`、`/home/later/.pi/agent` |
 | 服务 | `pi-web.service`、`pi-web-cloud-relay.service` 与 Nginx 均为 `enabled + active` |
-| 访问入口 | 公网 `https://linux.ai4child.asia`；LAN fallback `http://192.168.1.68`；Next.js 仅监听 loopback |
+| 用户入口 | 唯一 PWA/手机入口 `https://pi.ai4child.asia`；设备菜单在同一 origin 内切换 Mac/Linux 后端 |
+| 物理入口 | Linux 直连 `https://linux.ai4child.asia` 与 LAN `http://192.168.1.68` 仅作部署验收/故障回退；Next.js 仅监听 loopback |
 | 设备身份 | `linux-home / Pop!_OS`，与 `mac-main / Main Mac` 互相可见 |
-| 凭据边界 | 复用应用登录账号文件；远端独立生成 Cookie 签名密钥；未复制 Provider/OAuth 凭据 |
-| 验证证据 | production build、loopback/LAN/公网 health、TLS、登录/登出、双向 `/api/devices`、systemd/tunnel restart 均通过 |
+| 凭据边界 | 网关成员共享应用登录账号和 Cookie 签名密钥；未复制 Provider/OAuth 凭据，Session/项目/Agent 仍各自留在本机 |
+| 验证证据 | 同一登录 Cookie 下 `mac-main → linux-home → mac-main` 全部 `200`，地址不变；未知设备 Cookie 回退 Mac；两端 health 与服务重启通过 |
 
-当前 Mac 也已重新构建并安装包含多设备入口的 `.next-mobile`；本机、云端 SSH relay、Nginx、Cloudflare 公网登录与两个账号的 Cookie 验证全部通过。
+Mac 与 Pop!_OS 均运行 Later 私有分支 `535925d` 的 `.next-mobile`，不是上游原版。云端 Nginx 根据 HttpOnly `pi_web_device` Cookie 将同一入口粘性路由到 `33041`（Mac）或 `33043`（Linux）；设备选择控制面固定到 Mac，Linux 在已加载页面期间掉线时仍可切回。若浏览器带着 Linux 偏好冷启动且 Linux 已离线，当前恢复方式是清除该站点的设备偏好；专用恢复页列为后续增强。
 
 ## 已解决的仓库风险
 
@@ -71,9 +72,9 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 
 运行 `./scripts/check-upstream.sh` 会抓取并报告主仓差异，但不会改分支。自动合并容易在 PWA、依赖锁、移动 CSS 和部署脚本上静默覆盖自研行为，因此合并必须按 [维护与故障案例手册](./docs/maintenance-playbook.zh-CN.md) 人工验收。
 
-### P4：双设备服务端闭环已完成，手机跨 origin 场景待真机验收
+### P4：同源双设备闭环已完成，交互与运行态仍需真机持续验收
 
-[多设备 ADR](./docs/multi-device-architecture.zh-CN.md) 的直连目录、API、桌面/手机入口、两台真实设备和两个公网 HTTPS origin 已完成服务端验收。Safari/installed PWA 的跨 origin 跳转、运行中切换、目标离线和双设备 Push 仍需手机真机验收。单 origin 网关、中心认证/Push 和 heartbeat 属于 Phase 2，不应在一期用共享父域 Cookie 或客户端逐台轮询替代。
+[多设备 ADR](./docs/multi-device-architecture.zh-CN.md) 的同源入口、设备选择 API、HttpOnly 路由 Cookie、Nginx 白名单粘性路由、共享应用登录和两台真实设备已完成服务端验收。Safari/installed PWA 需要刷新后确认菜单交互；运行中切换、Linux 离线时回切和跨设备 Push 仍需真机验收。健康聚合、中央 Push broker 与设备授权是后续增强，不阻塞当前同终端切换。
 
 ## 下一次更新本文件时至少记录
 

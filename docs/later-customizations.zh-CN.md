@@ -63,7 +63,7 @@ Push 内容只使用有界预览和 Session 深链，不发送完整对话。HTT
 
 ## 关键不变量
 
-1. 手机和电脑必须到达同一个 Next.js 进程；复制 Session 文件不等于实时同步。
+1. 选择某台设备后，同一页面生命周期内的 HTML、API、SSE 和静态资源必须到达该设备的同一个 Next.js 进程；复制 Session 文件不等于实时同步。
 2. 浏览历史 Session 不应创建 `AgentSession`；只有发送命令才启动运行时。
 3. Service Worker 不能缓存 `/api/*`、登录响应、Session HTML 或 SSE；只缓存版本化静态资源与离线提示。
 4. 公网认证使用 Pi Web 登录 Cookie；Nginx 不再启用 `auth_basic`。
@@ -81,4 +81,4 @@ Push 内容只使用有界预览和 Session 深链，不发送完整对话。HTT
 - 上游同步、提交和案例库：[维护与故障案例手册](./maintenance-playbook.zh-CN.md)
 - PWA 安装：[PWA 指南](./PWA.md)
 - Session/模型使用：[Pi Agent 手册](./pi-agent-model-usage.zh-CN.md) 与 [Codex 手册](./codex-session-model-usage.zh-CN.md)
-- 多设备：[多设备接入架构与一期 ADR](./multi-device-architecture.zh-CN.md)
+- 多设备：[多设备接入架构 ADR](./multi-device-architecture.zh-CN.md)

@@ -2,7 +2,7 @@
 
 ## 快速结论
 
-Pi Web 的电脑端和手机端共用 Mac 上的同一个 production 进程。日常启动后，用第二条命令确认从本机到公网的整条链路都正常：
+手机只使用一个入口、一个登录和一个 Pi Web 界面：`https://pi.ai4child.asia`。默认执行设备是 Mac；在设备菜单选择 Pop!_OS 后，页面、API、SSE 和静态资源会在同一 origin 下整体切到 Linux，不会打开另一套管理界面。
 
 ```bash
 ./scripts/manage-pi-web.sh start
@@ -11,18 +11,18 @@ Pi Web 的电脑端和手机端共用 Mac 上的同一个 production 进程。�
 
 - 电脑访问：<http://127.0.0.1:30141>
 - 手机访问：<https://pi.ai4child.asia>
-- Mac 必须开机、联网并保持当前用户已登录；PWA 本身不提供离线后端。
+- Mac 承担设备选择控制面，必须开机、联网并保持当前用户已登录；PWA 本身不提供离线后端。
 
 ## 当前第二台设备
 
 2026-07-30 已部署 `linux-home / Pop!_OS`：
 
-- 公网 HTTPS 入口：<https://linux.ai4child.asia>
+- 日常入口仍是：<https://pi.ai4child.asia>
+- Linux 物理直连：<https://linux.ai4child.asia>，只用于部署验收和故障回退
 - 同一局域网 fallback：<http://192.168.1.68>
-- Mac 与 Pop!_OS 的设备菜单都能列出 `mac-main` 和 `linux-home`。
-- 两边使用相同的应用登录账号列表，但使用不同的 Cookie 签名密钥。
-- 两个设备是不同 origin，登录 Cookie 不共享；第一次切换到 Pop!_OS 时可能需要登录一次。
-- Pop!_OS 通过独立受限 reverse tunnel 接入云端 `33043/33044`，不会与 Mac 的 `33041/33042` 混流。
+- 主入口设备菜单列出 `mac-main` 和 `linux-home`，选择后仍停留在原 URL。
+- 两边运行相同的 Later 私有版本，共享应用登录账号列表和 Cookie 签名密钥，因此无需第二次登录。
+- Pop!_OS 通过独立受限 reverse tunnel 接入云端 `33043`；主网关 `33042` 安全选择 `33041/33043`，`33044` 仅保留 Linux 直连排障。
 
 当前设备目录分别保存在 Mac 的 `deploy/devices.local.json` 和 Pop!_OS 的 `~/.config/pi-web/devices.json`，两者权限/提交策略不同：前者被 Git 忽略，后者只允许运行用户读取，均不包含密码或 Token。
 
@@ -34,7 +34,8 @@ Pi Web 的电脑端和手机端共用 Mac 上的同一个 production 进程。�
                                   Pi Web production
                                   127.0.0.1:30141
                                           ▲
-手机 ─▶ Cloudflare ─▶ 云端 Nginx :33042 ─▶ SSH 反向隧道 :33041
+手机 ─▶ Cloudflare ─▶ 云端 Nginx :33042 ─┬─ Cookie=mac-main   ─▶ :33041 ─▶ Mac
+                                           └─ Cookie=linux-home ─▶ :33043 ─▶ Pop!_OS
 ```
 
 Mac 上由 2 个 LaunchAgent 常驻运行：
@@ -44,10 +45,10 @@ Mac 上由 2 个 LaunchAgent 常驻运行：
 
 云服务器上还有 2 个 systemd 服务：
 
-1. `nginx`：在 `127.0.0.1:33042` 接收 Cloudflare 回源并转给 `33041`。
+1. `nginx`：在 `127.0.0.1:33042` 接收 Cloudflare 回源，并按白名单设备 Cookie 粘性转给 `33041` 或 `33043`；未知值回退 Mac，`/api/devices/select` 固定转给 Mac 控制面。
 2. `cloudflared`：承接 `pi.ai4child.asia` 的 HTTPS 流量并转给 Nginx。
 
-认证由 Pi Web 的 `/login` 和签名 HttpOnly Cookie 完成；Nginx 不应启用浏览器原生 Basic Auth。
+认证由 Pi Web 的 `/login` 和签名 HttpOnly Cookie 完成；设备偏好使用另一枚不含秘密的 HttpOnly Cookie。Nginx 不应启用浏览器原生 Basic Auth。
 
 ## 日常启动、停止和检查
 
@@ -113,6 +114,7 @@ PI_WEB_PUBLIC_HOSTNAME=none ./scripts/verify-mobile-relay.sh
 PI_WEB_DEVICE_ID=mac-main \
 PI_WEB_DEVICE_NAME='Main Mac' \
 PI_WEB_PUBLIC_URL=https://mac.example.com \
+PI_WEB_DEVICE_GATEWAY_URL=https://pi.example.com \
 PI_WEB_DEVICES_FILE="$PWD/deploy/devices.local.json" \
 ./scripts/install-mobile-relay.sh
 ```
@@ -124,7 +126,7 @@ PI_WEB_DEVICES_FILE="$PWD/deploy/devices.local.json" \
 1. 构建独立的 `.next-mobile/` production 产物。
 2. 创建或复用登录凭据与 Cookie 签名密钥。
 3. 检查并安全回收仅由旧 `sshd` 占用的云端专用端口 `33041`。
-4. 上传并安装云端 Nginx 配置；失败时服务器安装脚本会回滚。
+4. 上传并安装同源双设备 Nginx 配置；失败时服务器安装脚本会回滚。
 5. 安装并启动两个 Mac LaunchAgent。
 6. 等待本机服务和 SSH 反向隧道健康。
 
@@ -177,6 +179,7 @@ production 使用 `.next-mobile/`，不会与开发服务器的 `.next/` 混用�
 2. 本机正常但 `云端隧道检查` 失败：执行 `./scripts/manage-pi-web.sh restart`。脚本会先关闭当前隧道，并仅在确认 `33041` 的占用者是 `sshd` 时回收旧连接。
 3. 云端隧道正常但 `手机公网检查` 失败：检查云服务器的 Nginx 和 cloudflared。
 4. `/login` 能打开但登录失败：检查 `deploy/secrets/pi-web-auth-credentials.json`，权限必须是 `600`；不要把密码打印进日志或提交 Git。
+5. Linux 在页面已打开时掉线：设备菜单仍可调用固定在 Mac 的选择接口并切回。若刷新/冷启动后直接出现 `502`，说明 Linux 服务或 `33043` 隧道不可用；当前需清除 `pi.ai4child.asia` 的站点数据以恢复默认 Mac，后续补专用恢复页。
 
 云服务器只读检查命令：
 

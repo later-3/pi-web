@@ -104,7 +104,7 @@ npx @agegr/pi-web@latest
 - **随时掌握会话状态**：在顶部就能看到上下文占用、花费、压缩结果和系统提示，长会话不再像黑箱。
 - **少离开当前界面**：模型、登录/API key、模型测试和技能开关都能在网页里处理，配置 agent 时不用在多个工具之间来回切换。
 - **复核 Chat 执行层**：同时读取`~/.pi/agent/chat-sessions`中的Chat托管转录，以`CHAT · 只读`分类展示；可查看和导出，但不能继续、Fork、重命名或删除。
-- **在多台设备间切换**：可通过受限 JSON 目录配置设备身份和访问 URL，在桌面顶栏或手机菜单切换到另一台 Pi Web；一期为直连模式，长期演进到单一 PWA 设备网关。
+- **在同一个 Pi Web 内切换执行设备**：受限设备目录与同源粘性网关让手机始终使用同一个 URL、登录、PWA 和界面，桌面顶栏或手机菜单只切换 Mac/Linux/工作站后端；各设备直连 URL 仅用于部署验收和故障回退。
 
 ## 注意事项
 
@@ -122,7 +122,7 @@ npx @agegr/pi-web@latest
 
 Session、模型、Thinking、上下文、工具验证和停止续接的实践方法，见 [Pi Agent + 模型使用手册](./docs/pi-agent-model-usage.zh-CN.md)。
 
-手机连接多台 Mac/Linux/工作站的分期架构、性能与测试边界，见 [多设备接入架构与一期 ADR](./docs/multi-device-architecture.zh-CN.md)。
+手机连接多台 Mac/Linux/工作站的同源网关架构、性能与测试边界，见 [多设备接入架构 ADR](./docs/multi-device-architecture.zh-CN.md)。
 
 ```bash
 npm install

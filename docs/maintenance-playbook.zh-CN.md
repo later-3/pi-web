@@ -90,6 +90,8 @@ npm install
 bun install --lockfile-only --ignore-scripts
 ```
 
+同日继续同步 `upstream/main@9d1721f` 时，`app/globals.css` 与 `components/AppShell.tsx` 发生 2 个冲突。最终同时保留上游可拖拽侧栏及其持久化、Later 的移动视口/安全区和设备切换入口；合并提交为 `d700491`，不得用整文件 ours/theirs 覆盖任一侧。
+
 ### E. 验证
 
 开发阶段禁止运行 `next build`。最低检查：
@@ -220,6 +222,15 @@ git push -u origin codex/later-custom
 - 根因证据：最初使用 `linux.pi.ai4child.asia`，这是相对 `ai4child.asia` 的两层子域名；当前通用证书覆盖 apex 与单层 wildcard，但不覆盖该嵌套名称。两个边缘 IP 均复现握手失败。
 - 修复：改用单层 `linux.ai4child.asia`，重新配置 ingress、Host allow-list 和设备目录；两个 Cloudflare 边缘 IP 随即返回 health `200` 且 TLS 校验为 0。
 - 防复发：设计设备 hostname 时先核对证书 SAN/层级，不要只验证 DNS；上线门槛必须同时包含权威 DNS、两边缘 TLS、应用登录和 `/api/devices`。
+
+### 3.16 多设备切换像进入另一套应用
+
+- 症状：手机从设备菜单跳到另一个子域名，地址、登录、PWA scope 和页面生命周期一起改变，用户感知为两套割裂的管理界面。
+- 根因：一期把 `window.location.assign(device.url)` 当成最终交互；不同 origin 天然拥有不同 Cookie、Service Worker 和 installed PWA 边界。
+- 修复：手机只访问一个网关 origin；`POST /api/devices/select` 写入 HttpOnly `pi_web_device`，随后整页刷新同一 URL。Nginx 只把已知 id 映射到设备 tunnel，HTML、API、SSE 和静态资源在一次页面生命周期内粘到同一后端。网关成员共享应用账号与会话签名密钥，控制接口固定到主设备；离线目标冷启动的当前恢复方式是清除站点设备偏好。
+- 自动化验证：覆盖目录 gateway 模式、选择 API 的 Origin/JSON/体积/id 校验、Cookie 属性、客户端超时和 Nginx 映射；全量 `235/235` tests 通过。
+- 部署验证：同一签名登录 Cookie 下完成 `mac-main → linux-home → mac-main`，所有请求均为 `200`、URL 不变；未知 Cookie 回退 Mac。
+- 防复发：设备 URL 只能作为隧道/故障回退 adapter，不再作为正常 UI 导航；新增设备必须运行兼容 build、共享应用认证材料，并保留主控制面回切路径。Session、Provider Key 和项目文件禁止因“统一界面”而集中复制。后续恢复页必须是主设备固定路由且不依赖所选目标的静态资源。
 
 ## 4. 新案例模板
 

@@ -115,11 +115,14 @@ PI_WEB_PUSH_SUBJECT=mailto:admin@example.com
 PI_WEB_DEVICE_ID=linux-home
 PI_WEB_DEVICE_NAME=Home Linux
 PI_WEB_PUBLIC_URL=https://linux.example.com
+PI_WEB_DEVICE_GATEWAY_URL=https://pi.example.com
 PI_WEB_DEVICES_FILE=/home/piweb/.config/pi-web/devices.json
 NO_PROXY=localhost,127.0.0.1
 ```
 
 多设备目录可从 [`deploy/devices.example.json`](../deploy/devices.example.json) 复制到 `/home/piweb/.config/pi-web/devices.json`，再写入实际设备的非敏感 `id/name/url`。文件权限建议 `600`；真实密码和密钥不属于该目录。只有一台设备时可以省略全部 `PI_WEB_DEVICE_*` 与 `PI_WEB_DEVICES_FILE`，UI 会自动保持原来的单机模式。
+
+独立直连部署可以为每台机器生成不同的 `session-secret`。加入同一个 `PI_WEB_DEVICE_GATEWAY_URL` 后，各网关成员必须通过受保护通道分发同一份账号文件和 `session-secret`，否则切换设备后原登录 Cookie 会变成 `401`。不要把共享密钥写入 Git、命令参数、日志或设备目录；权限保持 `600`。Session、项目、Provider/OAuth、Push store 和 Agent 进程仍然各自留在设备上。
 
 若模型请求需要代理，再加入 `HTTP_PROXY`/`HTTPS_PROXY`。Provider API key、OAuth 和模型配置保存在运行用户的 Pi agent 目录中，可通过受保护的 Web UI 配置或从旧机器安全迁移；不要写进仓库或 systemd unit。
 
@@ -216,7 +219,7 @@ curl --silent --head https://pi.example.com/login
 8. 安装 PWA 后图标、主题、安全区和键盘布局正常。
 9. 用户主动开启通知后收到测试 Push 和一次真实完成 Push。
 10. 重启服务器后 Pi Web 自动恢复，Session 文件仍在。
-11. 配置多设备时，`/api/devices` 返回当前设备和目标设备，桌面/手机切换入口出现。
+11. 配置同源网关时，`/api/devices` 返回 `selectionMode=gateway`；同一登录态切到目标设备后 URL 不变、认证仍有效、`X-Pi-Web-Device` 与目标 id 一致，并能切回主设备。
 
 Linux 上没有仓库内的 macOS LaunchAgent/SSH relay，`scripts/manage-pi-web.sh` 不适用；使用 `systemctl`、`journalctl` 和本手册的健康检查。
 
@@ -255,7 +258,7 @@ curl --fail --silent http://127.0.0.1:30141/api/health
 | 主机/架构 | `pop-os` / x86_64 / Linux 6.18.7 |
 | 资源 | 32 CPU、62 GiB 内存、227 GiB 可用磁盘 |
 | Node/npm/Git | `22.22.2` / `10.9.7` / `2.43.0` |
-| 固定源码 | `codex/later-custom@2679fd4` |
+| 固定源码 | `codex/later-custom@535925d` |
 | 运行用户/目录 | `later` / `/home/later/Code/pi-web` |
 | 服务 | `pi-web.service`、`pi-web-cloud-relay.service` + Nginx，均 enabled/active |
 | 监听 | Next `127.0.0.1:30141`；LAN Nginx `:80`；云端 relay/Nginx `33043/33044` |
@@ -263,7 +266,7 @@ curl --fail --silent http://127.0.0.1:30141/api/health
 
 该机器同时是用户工作站，需要访问其项目目录，因此没有创建隔离的 `piweb` 用户；systemd 仍启用 `NoNewPrivileges`、`PrivateTmp` 和 `UMask=0077`。通用服务器继续优先使用前文的专用用户模型。
 
-正式入口是 `https://linux.ai4child.asia`：Pop!_OS 的受限 systemd SSH tunnel 把本机 `30141` 转到云服务器 loopback `33043`，云端 Nginx `33044` 负责 Host、SSE 与超时参数，现有 Cloudflare Tunnel 提供 DNS、TLS 和公网边缘。云端使用无 shell 的专用 `piweb-linux-relay` 用户，Key 仅允许监听 `127.0.0.1:33043`。`http://192.168.1.68` 只保留为可信 LAN fallback，不再写入手机设备目录。
+用户正式入口是 `https://pi.ai4child.asia`：云端主入口 Nginx 根据 `pi_web_device` 把整条请求粘性路由到 Mac `33041` 或 Pop!_OS `33043`。`https://linux.ai4child.asia` 是 Linux 物理直连/故障排查入口，`http://192.168.1.68` 只保留为可信 LAN fallback，二者都不用于日常手机切换。Pop!_OS 的受限 systemd SSH tunnel 把本机 `30141` 转到云服务器 loopback `33043`；云端使用无 shell 的专用 `piweb-linux-relay` 用户，Key 仅允许监听该端口。
 
 实机完成了以下自动验收：
 
@@ -271,9 +274,9 @@ curl --fail --silent http://127.0.0.1:30141/api/health
 2. loopback 与 LAN health 均返回 `status=ok`。
 3. 未登录根路径重定向 `/login`，受保护 API 返回 `401`。
 4. 登录、Cookie 会话、登出均返回 `200`。
-5. Pop!_OS 返回 `current=linux-home`，Mac 返回 `current=mac-main`，两边都包含 2 个 HTTPS URL 且无 diagnostic。
+5. 主入口返回 `selectionMode=gateway`；同一登录 Cookie 下完成 `mac-main → linux-home → mac-main`，所有 API/health 均为 `200` 且 URL 不变。
 6. Cloudflare 两个边缘 IP 的 TLS 校验与 health 均为 `200`，公网登录、Cookie、登出均通过。
 7. `systemctl restart pi-web` 与主动重启 reverse tunnel 后均自动恢复，journal 无 warning/error。
-8. Mac production/SSH relay/Nginx/Cloudflare 全链路重新安装并通过完整验证脚本。
+8. Mac production/SSH relay/Nginx/Cloudflare 全链路重新安装并通过完整验证脚本；未知设备 Cookie 自动回退 `mac-main`。
 
-尚未完成的项目是手机 Safari/installed PWA 真机切换、远端模型凭据、SSE 实际推理和双设备 Push；这些不应由服务端 HTTPS 探针冒充已经通过。
+尚未完成的项目是手机 Safari/installed PWA 的菜单手感与运行中切换验收、远端模型凭据、SSE 实际推理、目标离线回切和双设备 Push；这些不应由服务端 HTTPS 探针冒充已经通过。

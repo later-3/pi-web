@@ -87,7 +87,7 @@ npx @agegr/pi-web@latest
 - **Configure less from the terminal**: manage models, login/API keys, model tests, and skill switches from the web UI.
 - **Use the interface in your language**: switch between the supported UI languages from the top bar.
 - **Inspect Chat execution transcripts**: sessions in `~/.pi/agent/chat-sessions` are labeled as Chat-managed, read-only evidence. They can be viewed or exported, but not resumed, forked, renamed, or deleted.
-- **Switch between Pi Web devices**: configure a bounded device directory and navigate from the desktop bar or mobile menu to another Mac/Linux/workstation. Direct URLs are the Phase 1 bridge; a single-origin gateway is the long-term PWA architecture.
+- **Switch execution devices inside one Pi Web**: a bounded device directory plus a same-origin sticky gateway keeps one URL, login, PWA, and interface while routing the full page/API/SSE lifecycle to the selected Mac/Linux/workstation. Per-device URLs remain deployment and break-glass adapters.
 
 ## Notes
 
@@ -102,7 +102,7 @@ npx @agegr/pi-web@latest
 
 ## Development
 
-The multi-device decision, performance limits, failure modes, and phased gateway plan are documented in [Multi-device architecture (Chinese)](./docs/multi-device-architecture.zh-CN.md).
+The multi-device decision, deployed same-origin gateway, performance limits, and failure modes are documented in [Multi-device architecture (Chinese)](./docs/multi-device-architecture.zh-CN.md).
 
 ```bash
 npm install

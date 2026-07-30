@@ -16,6 +16,7 @@
 # next.js
 /.next/
 /.next-mobile/
+/.next-mobile-backup-*/
 /out/
 
 # production

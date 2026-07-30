@@ -3,7 +3,7 @@ import typescript from "eslint-config-next/typescript";
 
 const eslintConfig = [
   {
-    ignores: [".next-mobile/**"],
+    ignores: [".next-mobile/**", ".next-mobile-backup-*/**"],
   },
   ...coreWebVitals,
   ...typescript,
