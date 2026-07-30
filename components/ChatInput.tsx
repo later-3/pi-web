@@ -1186,6 +1186,26 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             {compactResultText}
           </div>
         )}
+        {compactError && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 8,
+              padding: "7px 10px",
+              background: "rgba(239,68,68,0.07)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              borderRadius: 6,
+              color: "#ef4444",
+              fontFamily: "var(--font-mono)",
+              fontSize: 12,
+              lineHeight: 1.5,
+              whiteSpace: "pre-wrap",
+              overflowWrap: "anywhere",
+            }}
+          >
+            {compactError}
+          </div>
+        )}
         {/* Image previews */}
         {attachedImages.length > 0 && (
           <div style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
@@ -2156,17 +2176,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
             {!isStreaming && onCompact && (
               <div className={isMobile ? "mobile-settings-tile-wrapper" : undefined} style={{ position: "relative" }}>
-                {compactError && (
-                  <div style={{
-                    position: "absolute", bottom: "calc(100% + 6px)", right: 0,
-                    background: "#1f2937", color: "#f87171",
-                    fontSize: 11, padding: "4px 8px", borderRadius: 5,
-                    whiteSpace: "nowrap", pointerEvents: "none",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.2)", zIndex: 50,
-                  }}>
-                    {compactError}
-                  </div>
-                )}
                 <button
                   onClick={isCompacting ? onAbortCompaction : onCompact}
                   disabled={isStreaming && !isCompacting}

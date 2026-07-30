@@ -136,7 +136,7 @@ body {
 }
 
 :root {
-  --font-mono: 'JetBrains Mono', 'SFMono-Regular', 'Fira Code', 'Consolas', ui-monospace, 'PingFang SC', 'Microsoft YaHei', monospace;
+  --font-mono: var(--font-noto-mono), 'JetBrains Mono', 'SFMono-Regular', 'Fira Code', 'Consolas', ui-monospace, 'PingFang SC', 'Microsoft YaHei', monospace;
 }
 
 pre, code {

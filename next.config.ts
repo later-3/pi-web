@@ -59,6 +59,9 @@ const nextConfig: NextConfig = {
         ],
       },
       ...[
+        "/icons/icon-192.png",
+        "/icons/icon-512.png",
+        "/icons/apple-touch-icon.png",
         "/icon-192x192.png",
         "/icon-512x512.png",
         "/icon-maskable-192x192.png",
@@ -69,12 +72,6 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
         ],
       })),
-      {
-        source: "/apple-touch-icon.png",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
-        ],
-      },
     ];
   },
   env: {
