@@ -2,7 +2,8 @@ export interface MobileViewportInput {
   innerHeight: number;
   visualHeight: number;
   visualOffsetTop: number;
-  screenHeight: number;
+  visualScale: number;
+  editableFocused: boolean;
   standalone: boolean;
 }
 
@@ -15,24 +16,33 @@ export interface MobileViewportResult {
 /**
  * Resolve the height used by the fixed mobile shell.
  *
- * iOS standalone PWAs can expose an inner/dynamic viewport that is shorter
- * than the physical CSS screen even with the keyboard closed. That missing
- * strip must not be mistaken for keyboard coverage. Once the viewport loss is
- * large enough to be a keyboard, however, the visual viewport is authoritative.
+ * CSS viewport units are authoritative while the keyboard is closed. WebKit
+ * currently subtracts safe-area insets from dynamic/small viewport units in
+ * some installed apps with `viewport-fit=cover`, while legacy `vh` includes
+ * that area. Use `100vh` only in standalone mode and keep `100dvh` in Safari.
+ *
+ * The Visual Viewport API is used only for its intended exception: an editable
+ * control has focus and the on-screen keyboard has substantially reduced the
+ * visible viewport. Requiring focus also prevents a stale standalone-PWA
+ * visual viewport (or browser chrome changes) from leaving a permanent gap.
  */
 export function resolveMobileViewport({
   innerHeight,
   visualHeight,
   visualOffsetTop,
-  screenHeight,
+  visualScale,
+  editableFocused,
   standalone,
 }: MobileViewportInput): MobileViewportResult {
-  const layoutCoverage = Math.max(0, innerHeight - visualHeight - visualOffsetTop);
-  const standaloneCoverage = standalone
-    ? Math.max(0, screenHeight - visualHeight - visualOffsetTop)
-    : 0;
-  const keyboardThreshold = Math.max(120, screenHeight * 0.15);
-  const keyboardOpen = Math.max(layoutCoverage, standaloneCoverage) > keyboardThreshold;
+  const viewportLoss = Math.max(
+    0,
+    innerHeight - visualHeight - visualOffsetTop,
+  );
+  const keyboardThreshold = Math.max(120, innerHeight * 0.15);
+  const keyboardOpen = editableFocused
+    && visualScale <= 1.05
+    && visualHeight > 0
+    && viewportLoss > keyboardThreshold;
 
   if (keyboardOpen) {
     return {
@@ -43,7 +53,7 @@ export function resolveMobileViewport({
   }
 
   return {
-    height: standalone ? `${Math.max(innerHeight, screenHeight)}px` : "100dvh",
+    height: standalone ? "100vh" : "100dvh",
     offsetTop: "0px",
     keyboardOpen: false,
   };

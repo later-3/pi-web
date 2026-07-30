@@ -1,0 +1,288 @@
+.page {
+  min-height: 100dvh;
+  padding:
+    max(56px, calc(env(safe-area-inset-top, 0px) + 32px))
+    max(24px, env(safe-area-inset-right, 0px))
+    max(36px, calc(env(safe-area-inset-bottom, 0px) + 20px))
+    max(24px, env(safe-area-inset-left, 0px));
+  display: flex;
+  justify-content: center;
+  color: #17191c;
+  background: #ffffff;
+  overflow-y: auto;
+}
+
+.login {
+  width: min(100%, 488px);
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.brandMark {
+  color: #2563eb;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 45px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.intro {
+  margin-top: 58px;
+  text-align: center;
+}
+
+.intro h1 {
+  margin: 0;
+  font-size: 31px;
+  font-weight: 720;
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+}
+
+.intro p {
+  margin: 12px 0 0;
+  color: #6b7280;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.alert {
+  min-height: 52px;
+  margin-top: 28px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #b42318;
+  background: #fff4f3;
+  border: 1px solid #f7aaa4;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.alert svg {
+  flex: 0 0 auto;
+}
+
+.form {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 14px;
+  font-weight: 620;
+}
+
+.field > input,
+.passwordField {
+  width: 100%;
+  height: 54px;
+  color: #17191c;
+  background: #ffffff;
+  border: 1px solid #d9dde3;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.field > input,
+.passwordField input {
+  padding: 0 15px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  outline: none;
+}
+
+.field > input:focus,
+.passwordField:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.field input::placeholder {
+  color: #9ca3af;
+}
+
+.field input:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.passwordField {
+  display: flex;
+  align-items: center;
+}
+
+.passwordField input {
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  background: transparent;
+  border: 0;
+}
+
+.visibilityButton {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #717985;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+}
+
+.visibilityButton:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
+.remember {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #3f4650;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.remember input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #2563eb;
+}
+
+.remember svg {
+  color: #8b94a1;
+}
+
+.submit {
+  min-height: 56px;
+  margin-top: -2px;
+  color: #ffffff;
+  background: #2563eb;
+  border: 1px solid #2563eb;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 650;
+  box-shadow: 0 5px 14px rgba(37, 99, 235, 0.2);
+}
+
+.submit:not(:disabled):active {
+  background: #1d4ed8;
+  transform: translateY(1px);
+}
+
+.submit:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.24);
+  outline-offset: 2px;
+}
+
+.submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.securityNote {
+  margin-top: 27px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  color: #7a828e;
+  text-align: center;
+}
+
+.securityNote svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.securityNote p {
+  margin: 0;
+  max-width: 390px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding-top: max(78px, calc(env(safe-area-inset-top, 0px) + 54px));
+  }
+
+  .login {
+    margin: 0;
+  }
+
+  .brand {
+    justify-content: center;
+    font-size: 19px;
+  }
+
+  .brandMark {
+    font-size: 39px;
+  }
+
+  .intro {
+    margin-top: 54px;
+    text-align: center;
+  }
+
+  .intro h1 {
+    font-size: 29px;
+  }
+
+  .alert {
+    margin-top: 24px;
+  }
+
+  .form {
+    margin-top: 25px;
+  }
+}
+
+@media (max-height: 700px) {
+  .page {
+    padding-top: max(22px, env(safe-area-inset-top, 0px));
+  }
+
+  .intro {
+    margin-top: 28px;
+  }
+
+  .alert,
+  .form {
+    margin-top: 18px;
+  }
+
+  .form {
+    gap: 15px;
+  }
+
+  .securityNote {
+    margin-top: 18px;
+  }
+}

@@ -39,9 +39,16 @@ PORT=8080 pi-web                # environment variable is also supported
 PI_WEB_HOSTNAME=0.0.0.0 pi-web  # explicit network exposure
 PI_WEB_ALLOWED_HOSTS=pi-web.internal pi-web  # allow an exact proxy/custom hostname
 PI_WEB_NO_OPEN=1 pi-web         # useful when running as a background service
+
+# Optional multi-account app login for a trusted HTTPS reverse proxy:
+PI_WEB_AUTH_REQUIRED=1 \
+PI_WEB_AUTH_CREDENTIALS_FILE=/absolute/path/to/credentials.json \
+PI_WEB_AUTH_SESSION_SECRET_FILE=/absolute/path/to/session-secret \
+PI_WEB_ALLOWED_HOSTS=pi.example.com \
+pi-web
 ```
 
-Pi Web has no application-level authentication and can invoke a high-privilege agent. Do not expose it to the internet; only use non-loopback bindings on a trusted network.
+The credentials file uses `{"credentials":[{"username":"name","password":"secret"}]}` and should have mode `600`. The legacy `PI_WEB_AUTH_USERNAME` + `PI_WEB_AUTH_PASSWORD_FILE` single-account settings remain supported, but cannot be combined with the multi-account file. Application authentication is disabled unless auth settings are present. When enabled, `/login` creates a signed HttpOnly session cookie bound to the matching account; set `PI_WEB_AUTH_REQUIRED=1` in public deployments so missing credentials fail closed. Pi Web can invoke a high-privilege agent, so do not expose it through plain HTTP or without a trusted HTTPS reverse proxy.
 API requests accept loopback names, IP literals, the selected bind hostname, and exact comma-separated names in `PI_WEB_ALLOWED_HOSTS`. Configure that variable when a trusted reverse proxy uses a different external hostname.
 
 ## HTTP Proxy

@@ -5,9 +5,9 @@ set -euo pipefail
 #
 # This script:
 #   1. Builds the mobile production bundle (.next-mobile) if not already built.
-#   2. Generates a random Basic Auth password (stored in deploy/secrets/).
-#   3. Uploads only the password *hash* to the server.
-#   4. Installs the Nginx config on the server via the server-side script.
+#   2. Generates a random login password and an independent cookie-signing key.
+#   3. Installs the Nginx config on the server (no browser-native Basic Auth).
+#   4. Configures Pi Web to authenticate with a signed HttpOnly cookie.
 #   5. Installs two LaunchAgents on this Mac:
 #      - com.later.pi-web.production  (next start on .next-mobile)
 #      - com.later.pi-web.cloud-relay (ssh -NT -R 33041:30141)
@@ -19,6 +19,7 @@ cloud_host="121.43.113.236"
 local_port=30141
 remote_port=33041
 nginx_port=33042
+public_hostname="${PI_WEB_PUBLIC_HOSTNAME:-pi.ai4child.asia}"
 user_name="$(id -un)"
 user_id="$(id -u)"
 user_home="$(/usr/bin/dscl . -read "/Users/$user_name" NFSHomeDirectory | /usr/bin/awk '{print $2}')"
@@ -30,6 +31,8 @@ secrets_dir="$project_root/deploy/secrets"
 log_dir="$project_root/deploy/logs"
 state_dir="$project_root/deploy/state"
 password_file="$secrets_dir/pi-web-http-password"
+credentials_file="$secrets_dir/pi-web-auth-credentials.json"
+session_secret_file="$secrets_dir/pi-web-session-secret"
 production_plist="$launch_agents_dir/$production_label.plist"
 relay_plist="$launch_agents_dir/$relay_label.plist"
 
@@ -39,7 +42,7 @@ usage: $0 [--skip-build] [--skip-server]
 
 Options:
   --skip-build     Skip the production build step (use existing .next-mobile).
-  --skip-server    Skip server-side Nginx installation (local-only setup).
+  --skip-server    Skip updating server-side Nginx (the SSH relay still starts).
 EOF
 }
 
@@ -84,7 +87,7 @@ else
   echo "==> Skipping build (--skip-build)."
 fi
 
-# --- Step 2: Generate password -----------------------------------------------
+# --- Step 2: Generate authentication secrets ---------------------------------
 
 mkdir -p "$secrets_dir" "$log_dir" "$state_dir"
 chmod 700 "$secrets_dir" "$log_dir" "$state_dir"
@@ -99,7 +102,22 @@ else
   echo "==> Using existing password: $password_file"
 fi
 
-password="$(<"$password_file")"
+if [[ ! -s "$credentials_file" ]]; then
+  password="$(<"$password_file")"
+  printf '{"credentials":[{"username":"piweb","password":"%s"}]}\n' "$password" > "$credentials_file"
+  chmod 600 "$credentials_file"
+  echo "==> Created credentials file from the existing piweb account: $credentials_file"
+else
+  echo "==> Using existing credentials file: $credentials_file"
+fi
+
+if [[ ! -s "$session_secret_file" ]]; then
+  openssl rand -hex 32 > "$session_secret_file"
+  chmod 600 "$session_secret_file"
+  echo "==> Generated session signing key: $session_secret_file"
+else
+  echo "==> Using existing session signing key: $session_secret_file"
+fi
 
 # Stop only our exact managed jobs. Afterwards any remaining listener is an
 # unmanaged dev/production process and must be handled explicitly; otherwise
@@ -112,45 +130,67 @@ if lsof -nP -iTCP:"$local_port" -sTCP:LISTEN 2>/dev/null | grep -q .; then
   exit 3
 fi
 
+echo "==> Checking SSH connectivity to root@$cloud_host..."
+if ! /usr/bin/ssh \
+  -o BatchMode=yes \
+  -o ConnectTimeout=10 \
+  -o StrictHostKeyChecking=yes \
+  "root@$cloud_host" true; then
+  echo "passwordless SSH or the pinned host key is unavailable for root@$cloud_host" >&2
+  exit 3
+fi
+
+# A dead client connection can leave sshd holding the dedicated reverse-tunnel
+# listener in CLOSE-WAIT. Reclaim only an sshd-owned listener on port 33041;
+# never kill an unrelated process that happens to use a configured port.
+echo "==> Checking remote reverse-tunnel port $remote_port..."
+/usr/bin/ssh \
+  -o BatchMode=yes \
+  -o ConnectTimeout=10 \
+  -o StrictHostKeyChecking=yes \
+  "root@$cloud_host" \
+  "
+    set -eu
+    port=$remote_port
+    for _attempt in 1 2 3; do
+      if ! ss -ltnH \"sport = :\$port\" 2>/dev/null | grep -q .; then
+        exit 0
+      fi
+      sleep 1
+    done
+    pid=\$(ss -ltnp \"sport = :\$port\" 2>/dev/null | sed -n 's/.*pid=\\([0-9][0-9]*\\).*/\\1/p' | head -n 1)
+    if test -z \"\$pid\"; then
+      echo \"remote port \$port is occupied, but its owner cannot be identified\" >&2
+      exit 3
+    fi
+    comm=\$(ps -o comm= -p \"\$pid\" | tr -d '[:space:]')
+    if test \"\$comm\" != sshd; then
+      echo \"remote port \$port belongs to non-sshd PID \$pid; refusing to stop it\" >&2
+      exit 3
+    fi
+    echo \"    Reclaiming stale SSH relay (remote PID \$pid).\"
+    kill \"\$pid\"
+    for _attempt in 1 2 3 4 5; do
+      if ! ss -ltnH \"sport = :\$port\" 2>/dev/null | grep -q .; then
+        exit 0
+      fi
+      sleep 1
+    done
+    echo \"remote port \$port is still occupied after stopping PID \$pid\" >&2
+    exit 4
+  "
+
 # --- Step 3: Server-side Nginx installation ----------------------------------
 
 if [[ "$skip_server" != "true" ]]; then
-  echo "==> Checking SSH connectivity to root@$cloud_host..."
-  if ! /usr/bin/ssh \
-    -o BatchMode=yes \
-    -o ConnectTimeout=10 \
-    -o StrictHostKeyChecking=yes \
-    "root@$cloud_host" true; then
-    echo "passwordless SSH or the pinned host key is unavailable for root@$cloud_host" >&2
-    exit 3
-  fi
 
   release_id="$(date -u +%Y%m%dT%H%M%SZ)"
 
-  # Check that the remote loopback port is free.
-  if /usr/bin/ssh \
-    -o BatchMode=yes \
-    -o ConnectTimeout=10 \
-    -o StrictHostKeyChecking=yes \
-    "root@$cloud_host" \
-    "ss -ltnH 'sport = :$remote_port' 2>/dev/null | grep -q ."; then
-    echo "remote loopback port $remote_port is already in use" >&2
-    exit 3
-  fi
-
-  # Generate htpasswd hash locally (only the hash goes to the server).
-  htpasswd_hash="$(printf '%s' "$password" | /usr/bin/openssl passwd -apr1 -stdin)"
-  staged_htpasswd="/tmp/pi-web-htpasswd-$release_id"
-  printf 'piweb:%s\n' "$htpasswd_hash" > "$staged_htpasswd"
-
-  # Upload nginx config and htpasswd to server.
+  # Upload the cookie-auth-compatible Nginx config. Login secrets never leave
+  # this Mac; the public server only forwards HTTPS traffic.
   /usr/bin/scp -o StrictHostKeyChecking=yes \
     "$project_root/deploy/nginx/pi-web.conf" \
     "root@$cloud_host:/tmp/pi-web-nginx-$release_id.conf"
-  /usr/bin/scp -o StrictHostKeyChecking=yes \
-    "$staged_htpasswd" \
-    "root@$cloud_host:/tmp/pi-web-htpasswd-$release_id"
-  rm -f "$staged_htpasswd"
 
   # Upload and run the server-side install script.
   /usr/bin/scp -o StrictHostKeyChecking=yes \
@@ -182,6 +222,9 @@ escaped_user_home="$(escape_sed "$user_home")"
 escaped_node_bin="$(escape_sed "$node_bin")"
 escaped_node_dir="$(escape_sed "$node_dir")"
 escaped_next_bin="$(escape_sed "$next_bin")"
+escaped_credentials_file="$(escape_sed "$credentials_file")"
+escaped_session_secret_file="$(escape_sed "$session_secret_file")"
+escaped_public_hostname="$(escape_sed "$public_hostname")"
 
 # Production plist.
 sed \
@@ -191,6 +234,9 @@ sed \
   -e "s|__NODE_BIN__|$escaped_node_bin|g" \
   -e "s|__NODE_DIR__|$escaped_node_dir|g" \
   -e "s|__NEXT_BIN__|$escaped_next_bin|g" \
+  -e "s|__AUTH_CREDENTIALS_FILE__|$escaped_credentials_file|g" \
+  -e "s|__AUTH_SESSION_SECRET_FILE__|$escaped_session_secret_file|g" \
+  -e "s|__PUBLIC_HOSTNAME__|$escaped_public_hostname|g" \
   "$project_root/deploy/macos/com.later.pi-web.production.plist.in" > "$production_plist"
 
 # Relay plist.
@@ -231,7 +277,7 @@ for _attempt in $(seq 1 20); do
     -o ConnectTimeout=5 \
     -o StrictHostKeyChecking=yes \
     "root@$cloud_host" \
-    "curl --fail --silent http://127.0.0.1:$remote_port/api/health >/dev/null 2>&1"; then
+    "curl --fail --silent --max-time 3 http://127.0.0.1:$remote_port/api/health >/dev/null 2>&1"; then
     relay_ready=true
     break
   fi
@@ -259,6 +305,8 @@ echo "=== pi-web mobile relay installed ==="
 echo "Local:        http://127.0.0.1:$local_port"
 echo "Cloud relay:  http://127.0.0.1:$remote_port (on $cloud_host)"
 echo "Nginx:        http://127.0.0.1:$nginx_port (on $cloud_host)"
-echo "Public:       https://pi.ai4child.asia (after Cloudflare setup)"
-echo "Password:     $password_file"
+echo "Public:       https://$public_hostname (after Cloudflare setup)"
+echo "Accounts:     $credentials_file"
+echo "Legacy pass:  $password_file"
+echo "Session key:  $session_secret_file"
 echo "Logs:         $log_dir/"

@@ -15,11 +15,13 @@ Mac ──▶ 127.0.0.1:30141 ──▶ pi-web (next start) ──────�
 - **Phone** accesses `https://pi.ai4child.asia` (Cloudflare → Nginx → SSH tunnel → pi-web).
 - Both reach the **same** Next.js process and the **same** in-process AgentSession registry.
 
-## Current Deployment Status (2026-07-27)
+## Deployment Configuration (2026-07-29)
 
 - Public URL: `https://pi.ai4child.asia`
-- Basic Auth user: `piweb`
-- Password file (Mac only, gitignored): `deploy/secrets/pi-web-http-password`
+- App login accounts: `piweb`, `later` (shared application privileges; no RBAC)
+- Credentials file (Mac only, mode `600`, gitignored): `deploy/secrets/pi-web-auth-credentials.json`
+- Legacy `piweb` password file (kept for migration, gitignored): `deploy/secrets/pi-web-http-password`
+- Cookie signing key (Mac only, gitignored): `deploy/secrets/pi-web-session-secret`
 - Mac production and SSH relay LaunchAgents are loaded and enabled with
   `KeepAlive=true`.
 - Public create → local read → local delete → public 404 was verified with a
@@ -38,16 +40,16 @@ Mac ──▶ 127.0.0.1:30141 ──▶ pi-web (next start) ──────�
 | `build:mobile` / `start:mobile` | npm scripts for the mobile production build |
 | LaunchAgent: `com.later.pi-web.production` | Runs `next start` with `.next-mobile` |
 | LaunchAgent: `com.later.pi-web.cloud-relay` | SSH `-R 127.0.0.1:33041:127.0.0.1:30141` |
-| Nginx on server | Basic Auth + reverse proxy to `127.0.0.1:33041` |
+| Nginx on server | Reverse proxy to `127.0.0.1:33041`; no browser-native auth prompt |
+| Pi Web auth | Public `/login`, signed HttpOnly cookie, protected pages/API/SSE |
 | Install / uninstall / verify scripts | Local Mac automation |
-| Server install script | Nginx config + htpasswd deployment |
+| Server install script | Nginx config deployment with backup and rollback |
 
 ## What is NOT in scope (Stage 1)
 
 - PWA / service worker / offline support
 - Voice / audio input on mobile
 - Mobile-specific UI layout or responsive redesign
-- JWT / token-based authentication (Basic Auth only)
 - Cloudflare Access / Zero Trust
 - RBAC / multi-user isolation
 - Happy / Paseo / Runtime Broker
@@ -83,7 +85,7 @@ the `.jsonl` file. This is an existing constraint, not new to Stage 1.
 |---|---|---|
 | 30141 | Mac loopback | pi-web (dev or production) |
 | 33041 | Server loopback | SSH reverse tunnel target |
-| 33042 | Server loopback | Nginx (Basic Auth + proxy) |
+| 33042 | Server loopback | Nginx reverse proxy |
 | 443 | Cloudflare edge | TLS termination → Nginx |
 
 ## Installation
@@ -92,7 +94,7 @@ the `.jsonl` file. This is an existing constraint, not new to Stage 1.
 
 - Passwordless SSH to `root@121.43.113.236` with the host key already accepted.
 - `nginx` installed on the server with `sites-available` / `sites-enabled`.
-- `openssl` available locally (for password generation and htpasswd hashing).
+- `openssl` available locally (for password and signing-key generation).
 - `node >= 22.19.0` and `npm install` already done.
 
 ### First-time install
@@ -104,11 +106,12 @@ chmod +x scripts/install-mobile-relay.sh
 
 This will:
 1. Build `.next-mobile/` (production build).
-2. Generate a random password in `deploy/secrets/pi-web-http-password`.
-3. Upload the password hash (not the plaintext) to the server.
-4. Install Nginx config on the server (with backup + rollback on failure).
-5. Install two LaunchAgents on the Mac.
-6. Wait for readiness and print the summary.
+2. Generate a random initial password and create `deploy/secrets/pi-web-auth-credentials.json` when absent.
+3. Generate an independent signing key in `deploy/secrets/pi-web-session-secret`.
+4. Install the Nginx config without `auth_basic` (with backup + rollback on failure).
+5. Configure Pi Web to validate signed HttpOnly session cookies.
+6. Install two LaunchAgents on the Mac.
+7. Wait for readiness and print the summary.
 
 ### Skip options
 
@@ -116,9 +119,14 @@ This will:
 # Skip the build (use existing .next-mobile):
 ./scripts/install-mobile-relay.sh --skip-build
 
-# Skip server installation (local-only):
+# Keep the current server-side Nginx config (the SSH relay still starts):
 ./scripts/install-mobile-relay.sh --skip-server
 ```
+
+`--skip-server` intentionally leaves the existing public Nginx policy unchanged;
+it still connects to the server, reclaims a stale dedicated relay port when
+needed, and starts the SSH tunnel. It does not remove an already-installed
+Basic Auth prompt from the public PWA.
 
 ### Uninstall
 
@@ -137,8 +145,9 @@ chmod +x scripts/verify-mobile-relay.sh
 ./scripts/verify-mobile-relay.sh
 ```
 
-Checks local health, LaunchAgent status, cloud loopback 401/200, and
-optionally the public hostname (set `PI_WEB_PUBLIC_HOSTNAME=none` to skip).
+Checks local health, LaunchAgent status, public login reachability, absence of
+`WWW-Authenticate`, protected-route redirects, cookie login, and optionally
+the public hostname (set `PI_WEB_PUBLIC_HOSTNAME=none` to skip).
 
 ## Cloudflare Setup (manual, out of script scope)
 
@@ -198,9 +207,13 @@ lsof -i :30141
 
 ```bash
 cat deploy/logs/cloud-relay.stderr.log
-# The LaunchAgent has KeepAlive=true and ThrottleInterval=10,
-# so launchd will restart it automatically.
+./scripts/manage-pi-web.sh restart
 ```
+
+The LaunchAgent has `KeepAlive=true` and `ThrottleInterval=10`, so launchd
+restarts an ordinary failed client. A Mac sleep or network transition can leave
+the remote `sshd` listener stuck on port `33041`; `start`, `restart`, and the
+installer reclaim that listener only after confirming the owner is `sshd`.
 
 ### Nginx returns 502
 

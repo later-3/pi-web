@@ -45,7 +45,7 @@ export function AppShell() {
   const { isDark, toggleTheme } = useTheme();
   const { locale, setLocale, t: translate, supportedLocales } = useI18n();
   const isMobile = useIsMobile();
-  useVisualViewport(); // sets --visual-viewport-height CSS var for fixed elements
+  useVisualViewport(); // CSS owns the resting viewport; JS adapts only to the keyboard.
   const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
   // When user clicks +, we only store the cwd — no fake session id
   const [newSessionCwd, setNewSessionCwd] = useState<string | null>(null);

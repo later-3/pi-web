@@ -14,6 +14,7 @@ import { useAgentSession, type AgentPhase, type NoticeItem } from "@/hooks/useAg
 import { useAudio } from "@/hooks/useAudio";
 import { useDragDrop } from "@/hooks/useDragDrop";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import {
   captureScrollDistance,
@@ -171,8 +172,9 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, children, t }: { mes
 }
 
 export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { soundEnabled, onSoundToggle, playDoneSound, unlockAudio } = useAudio();
+  const { pushStatus, onPushToggle } = usePushNotifications(locale);
   const isMobile = useIsMobile();
   const readOnly = session?.readOnly === true;
 
@@ -383,6 +385,8 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
       onBuiltinCommand={handleBuiltinSlashCommand}
       soundEnabled={soundEnabled}
       onSoundToggle={onSoundToggle}
+      pushStatus={pushStatus}
+      onPushToggle={onPushToggle}
       onAudioUnlock={unlockAudio}
       draftKey={session?.id ?? (newSessionCwd ? `new:${newSessionCwd}` : undefined)}
       cwd={session?.cwd ?? newSessionCwd}

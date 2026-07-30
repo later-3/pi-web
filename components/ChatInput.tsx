@@ -15,6 +15,15 @@ import {
 import { FolderIcon, getFileIcon } from "./FileIcons";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/hooks/useI18n";
+import type { PushNotificationStatus } from "@/hooks/usePushNotifications";
+import {
+  IconAdjustmentsHorizontal,
+  IconBell,
+  IconBellOff,
+  IconVolume,
+  IconVolumeOff,
+  IconX,
+} from "@tabler/icons-react";
 
 export interface AttachedImage {
   data: string;   // base64, no prefix
@@ -62,6 +71,8 @@ interface Props {
   onBuiltinCommand?: (message: string) => Promise<BuiltinSlashCommandResult>;
   soundEnabled?: boolean;
   onSoundToggle?: () => void;
+  pushStatus?: PushNotificationStatus;
+  onPushToggle?: () => void;
   onAudioUnlock?: () => void;
   draftKey?: string;
   /** Session working directory — enables the @ file autocomplete menu */
@@ -264,7 +275,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   retryInfo, queuedMessages, inputHistory = [], onRecallQueue,
   slashCommands, slashCommandsLoading, onLoadSlashCommands,
   onBuiltinCommand,
-  soundEnabled, onSoundToggle, onAudioUnlock,
+  soundEnabled, onSoundToggle, pushStatus, onPushToggle, onAudioUnlock,
   onPromptWithStreamingBehavior,
   draftKey,
   cwd,
@@ -997,6 +1008,28 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     return thinkingLevelMap[lvl] ?? lvl;
   })();
   const toolPresetLabel = Object.entries(TOOL_PRESET_MAP).find(([, v]) => v === (toolPreset ?? "default"))?.[0] ?? "default";
+  const pushStatusLabel = (() => {
+    switch (pushStatus) {
+      case "on": return t("chat.pushStatusOn");
+      case "off": return t("chat.pushStatusOff");
+      case "unverified": return t("chat.pushStatusUnverified");
+      case "error": return t("chat.pushStatusError");
+      case "denied": return t("chat.pushStatusDenied");
+      case "unsupported": return t("chat.pushStatusUnsupported");
+      case "enabling": return t("chat.pushStatusEnabling");
+      case "disabling": return t("chat.pushStatusDisabling");
+      default: return t("chat.pushStatusChecking");
+    }
+  })();
+  const pushStatusHint = pushStatus === "unverified"
+    ? t("chat.pushUnverifiedHint")
+    : pushStatus === "error"
+      ? t("chat.pushErrorHint")
+      : pushStatus === "denied"
+        ? t("chat.pushDenied")
+        : pushStatus === "unsupported"
+          ? t("chat.pushUnsupported")
+          : null;
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -1867,71 +1900,98 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             {isMobile && (
               <button
                 type="button"
-                 title={controlsMenuOpen ? undefined : t("chat.moreControls")}
-                 aria-label={t("chat.moreControls")}
+                 title={t("chat.runtimeSettings")}
+                 aria-label={t("chat.runtimeSettings")}
                 aria-expanded={controlsMenuOpen}
-                aria-hidden={controlsMenuOpen || undefined}
-                tabIndex={controlsMenuOpen ? -1 : undefined}
                 onClick={() => {
                   setModelDropdownOpen(false);
                   setModelFilter("");
-                  setControlsMenuOpen(true);
+                  setControlsMenuOpen((open) => !open);
                 }}
                 style={{
+                  position: "relative",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  width: "100%",
+                  width: 44,
                   height: 44,
-                  padding: "8px 10px",
-                  background: "none",
-                  border: "none",
-                  borderRadius: 9,
-                  color: "var(--text-muted)",
-                  cursor: controlsMenuOpen ? "default" : "pointer",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  visibility: controlsMenuOpen ? "hidden" : "visible",
-                  pointerEvents: controlsMenuOpen ? "none" : "auto",
+                  padding: 0,
+                  background: controlsMenuOpen ? "var(--bg-selected)" : "none",
+                  border: `1px solid ${controlsMenuOpen ? "color-mix(in srgb, var(--accent) 36%, var(--border))" : "transparent"}`,
+                  borderRadius: 11,
+                  color: controlsMenuOpen ? "var(--text)" : "var(--text-muted)",
+                  cursor: "pointer",
                   transition: "background 0.12s, color 0.12s",
                 }}
                 onMouseEnter={(e) => {
-                  if (controlsMenuOpen) return;
                   e.currentTarget.style.background = "var(--bg-hover)";
                   e.currentTarget.style.color = "var(--text)";
                 }}
                 onMouseLeave={(e) => {
-                  if (controlsMenuOpen) return;
-                  e.currentTarget.style.background = "none";
-                  e.currentTarget.style.color = "var(--text-muted)";
+                  e.currentTarget.style.background = controlsMenuOpen ? "var(--bg-selected)" : "none";
+                  e.currentTarget.style.color = controlsMenuOpen ? "var(--text)" : "var(--text-muted)";
                 }}
               >
-                {t("chat.moreControls")}
+                <IconAdjustmentsHorizontal size={19} stroke={1.8} />
+                {(pushStatus === "on" || pushStatus === "unverified" || pushStatus === "error") && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      top: 7,
+                      right: 7,
+                      width: 7,
+                      height: 7,
+                      borderRadius: 999,
+                      background: pushStatus === "on" ? "#10b981" : pushStatus === "unverified" ? "#f59e0b" : "#ef4444",
+                      boxShadow: "0 0 0 2px var(--bg)",
+                    }}
+                  />
+                )}
               </button>
             )}
-            <div style={{
-              display: isMobile ? (controlsMenuOpen ? "flex" : "none") : "flex",
+            <div className={isMobile ? "mobile-settings-panel" : undefined} style={{
+              display: isMobile ? (controlsMenuOpen ? "grid" : "none") : "flex",
               alignItems: "center",
               gap: isMobile ? 1 : 2,
               ...(isMobile ? {
                 position: "absolute",
                 right: 0,
-                bottom: 0,
-                zIndex: 60,
-                padding: 1,
-                width: "max-content",
+                bottom: "calc(100% + 8px)",
+                zIndex: 160,
+                padding: 10,
+                width: "min(320px, calc(100vw - 32px))",
                 maxWidth: "calc(100vw - 32px)",
-                flexWrap: "nowrap",
-                justifyContent: "flex-end",
+                boxSizing: "border-box",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                 border: "1px solid color-mix(in srgb, var(--border) 72%, transparent)",
-                borderRadius: 10,
-                background: "color-mix(in srgb, var(--bg-panel) 92%, var(--bg))",
-                boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
-                backdropFilter: "blur(10px)",
+                borderRadius: 16,
+                background: "color-mix(in srgb, var(--bg) 96%, transparent)",
+                boxShadow: "0 -8px 32px rgba(15,23,42,0.16)",
+                backdropFilter: "blur(16px)",
               } : null),
             }}>
+            {isMobile && (
+              <div className="mobile-settings-header">
+                <div>
+                  <strong>{t("chat.runtimeSettings")}</strong>
+                  <span>{pushStatusLabel}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setToolDropdownOpen(false);
+                    setThinkingDropdownOpen(false);
+                    setControlsMenuOpen(false);
+                  }}
+                  aria-label={t("chat.closeSettings")}
+                >
+                  <IconX size={18} stroke={1.8} />
+                </button>
+              </div>
+            )}
             {!isStreaming && onThinkingLevelChange && (
-              <div ref={thinkingDropdownRef} style={{ position: "relative" }}>
+              <div ref={thinkingDropdownRef} className={isMobile ? "mobile-settings-tile-wrapper" : undefined} style={{ position: "relative" }}>
                 <button
                   onClick={() => !isStreaming && setThinkingDropdownOpen((v) => !v)}
                   disabled={isStreaming}
@@ -2018,7 +2078,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               </div>
             )}
             {!isStreaming && onToolPresetChange && (
-              <div ref={toolDropdownRef} style={{ position: "relative" }}>
+              <div ref={toolDropdownRef} className={isMobile ? "mobile-settings-tile-wrapper" : undefined} style={{ position: "relative" }}>
                 <button
                   onClick={() => !isStreaming && setToolDropdownOpen((v) => !v)}
                   disabled={isStreaming}
@@ -2095,7 +2155,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             )}
 
             {!isStreaming && onCompact && (
-              <div style={{ position: "relative" }}>
+              <div className={isMobile ? "mobile-settings-tile-wrapper" : undefined} style={{ position: "relative" }}>
                 {compactError && (
                   <div style={{
                     position: "absolute", bottom: "calc(100% + 6px)", right: 0,
@@ -2149,6 +2209,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
             {isStreaming && (
               <button
+                className={isMobile ? "mobile-settings-tile" : undefined}
                 onClick={onAbort}
                  title={t("chat.stopAgent")}
                 style={{
@@ -2176,14 +2237,15 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
             {onSoundToggle !== undefined && (
               <button
+                className={isMobile ? "mobile-settings-tile" : undefined}
                 onClick={onSoundToggle}
                  title={soundEnabled ? t("chat.disableSound") : t("chat.enableSound")}
                  aria-label={soundEnabled ? t("chat.disableSound") : t("chat.enableSound")}
                 style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                  width: isMobile ? 44 : 32,
+                  display: "flex", alignItems: "center", justifyContent: isMobile ? "flex-start" : "center", gap: 8,
+                  width: isMobile ? "100%" : 32,
                   height: isMobile ? 44 : 32,
-                  padding: 0,
+                  padding: isMobile ? "0 12px" : 0,
                   background: "none",
                   border: "none",
                   borderRadius: 9,
@@ -2204,59 +2266,75 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 }}
               >
                 {soundEnabled ? (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                  </svg>
+                  <IconVolume size={16} stroke={1.8} />
                 ) : (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                    <line x1="23" y1="9" x2="17" y2="15" />
-                    <line x1="17" y1="9" x2="23" y2="15" />
-                  </svg>
+                  <IconVolumeOff size={16} stroke={1.8} />
                 )}
+                {isMobile && <span>{soundEnabled ? t("chat.soundStatusOn") : t("chat.soundStatusOff")}</span>}
               </button>
             )}
-            {isMobile && controlsMenuOpen && (
+            {pushStatus !== undefined && onPushToggle !== undefined && (
               <button
-                type="button"
-                 title={t("chat.collapseControls")}
-                 aria-label={t("chat.collapseControls")}
-                aria-expanded={true}
-                onClick={() => {
-                  setToolDropdownOpen(false);
-                  setThinkingDropdownOpen(false);
-                  setControlsMenuOpen(false);
-                }}
+                className={isMobile ? "mobile-settings-tile mobile-settings-push" : undefined}
+                onClick={onPushToggle}
+                disabled={["checking", "unsupported", "enabling", "disabling", "denied"].includes(pushStatus)}
+                title={pushStatus === "on"
+                  ? t("chat.disablePush")
+                  : pushStatus === "unsupported"
+                    ? t("chat.pushUnsupported")
+                    : pushStatus === "denied"
+                      ? t("chat.pushDenied")
+                      : pushStatus === "enabling"
+                        ? t("chat.pushEnabling")
+                        : pushStatus === "disabling"
+                          ? t("chat.pushDisabling")
+                          : pushStatus === "checking"
+                            ? t("chat.pushChecking")
+                            : pushStatus === "error"
+                              ? t("chat.pushRetry")
+                              : t("chat.enablePush")}
+                aria-label={pushStatus === "on" ? t("chat.disablePush") : t("chat.enablePush")}
+                aria-pressed={pushStatus === "on"}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 36,
-                  height: 32,
-                  padding: 0,
-                  marginLeft: 0,
-                  background: "var(--bg-hover)",
+                  gridColumn: isMobile ? "1 / -1" : undefined,
+                  display: "flex", alignItems: "center", justifyContent: isMobile ? "flex-start" : "center", gap: 8,
+                  width: isMobile ? "100%" : 32,
+                  height: isMobile ? 44 : 32,
+                  padding: isMobile ? "0 12px" : 0,
+                  background: "none",
                   border: "none",
-                  borderLeft: "1px solid color-mix(in srgb, var(--border) 72%, transparent)",
-                  borderRadius: "0 9px 9px 0",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  transition: "background 0.12s, color 0.12s",
+                  borderRadius: 9,
+                  color: pushStatus === "on"
+                    ? "#059669"
+                    : pushStatus === "unverified"
+                      ? "#d97706"
+                    : pushStatus === "error" || pushStatus === "denied"
+                      ? "#ef4444"
+                      : "var(--text-dim)",
+                  cursor: ["checking", "unsupported", "enabling", "disabling", "denied"].includes(pushStatus) ? "not-allowed" : "pointer",
+                  opacity: pushStatus === "on" ? 1 : 0.6,
+                  transition: "background 0.12s, color 0.12s, opacity 0.12s",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "var(--bg-selected)";
+                  if (e.currentTarget.disabled) return;
+                  e.currentTarget.style.background = "var(--bg-hover)";
+                  e.currentTarget.style.opacity = "1";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "var(--bg-hover)";
+                  e.currentTarget.style.background = "none";
+                  e.currentTarget.style.opacity = pushStatus === "on" ? "1" : "0.6";
                 }}
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                {pushStatus === "on"
+                  ? <IconBell size={16} stroke={1.8} />
+                  : <IconBellOff size={16} stroke={1.8} />}
+                {isMobile && <span>{pushStatusLabel}</span>}
               </button>
+            )}
+            {isMobile && pushStatusHint && (
+              <div className="mobile-settings-note" role="status">
+                {pushStatusHint}
+              </div>
             )}
             </div>
           </div>

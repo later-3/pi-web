@@ -26,6 +26,16 @@
     <string>__USER_HOME__</string>
     <key>PI_WEB_DIST_DIR</key>
     <string>.next-mobile</string>
+    <key>PI_WEB_ALLOWED_HOSTS</key>
+    <string>__PUBLIC_HOSTNAME__</string>
+    <key>PI_WEB_AUTH_REQUIRED</key>
+    <string>1</string>
+    <key>PI_WEB_AUTH_CREDENTIALS_FILE</key>
+    <string>__AUTH_CREDENTIALS_FILE__</string>
+    <key>PI_WEB_AUTH_SESSION_SECRET_FILE</key>
+    <string>__AUTH_SESSION_SECRET_FILE__</string>
+    <key>PI_WEB_AUTH_SESSION_DAYS</key>
+    <string>30</string>
     <key>NODE_ENV</key>
     <string>production</string>
     <key>PATH</key>

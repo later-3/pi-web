@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { allowFileRoot } from "@/lib/file-access";
 import { invalidateSessionListCache } from "@/lib/session-reader";
 import { startRpcSession } from "@/lib/rpc-manager";
+import { getWebAuthSubject } from "@/lib/web-auth";
 // POST /api/agent/new  body: { cwd: string; type: string; message?: string; ... }
 // Spawns a brand-new pi session. Most calls immediately send the first command;
 // type:"ensure_session" only creates the runtime so clients can query commands.
@@ -49,6 +50,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, sessionId: realSessionId, data: null });
     }
 
+    if (promptCommand.type === "prompt") {
+      const notificationAccount = getWebAuthSubject(req);
+      if (notificationAccount) session.setNotificationAudience(notificationAccount);
+    }
     const result = await session.send(promptCommand);
 
     return NextResponse.json({ success: true, sessionId: realSessionId, data: result });

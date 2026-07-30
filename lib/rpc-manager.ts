@@ -12,6 +12,7 @@ import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
 import type { AgentSessionLike, ExtensionUiContextLike, ToolInfo } from "./pi-types";
 import type { ExtensionUiRequest, ExtensionUiResponse, ExtensionWidgetItem } from "./types";
 import { createHeadlessCustomUiTui, DEFAULT_CUSTOM_UI_COLUMNS } from "./custom-ui-terminal";
+import { sendCompletionPush } from "./push-notifications";
 
 // ============================================================================
 // Types
@@ -124,6 +125,7 @@ export class AgentSessionWrapper {
   private unsubscribe: (() => void) | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private onDestroyCallback: (() => void) | null = null;
+  private notificationAudience: string | null = null;
   private _alive = true;
 
   constructor(public readonly inner: AgentSessionLike) {}
@@ -153,6 +155,18 @@ export class AgentSessionWrapper {
       this.resetIdleTimer();
       if (event.type === "agent_end") {
         invalidateSessionListCache();
+        const account = this.notificationAudience;
+        this.notificationAudience = null;
+        if (account) {
+          void sendCompletionPush(account, {
+            sessionId: this.sessionId,
+            sessionName: this.inner.sessionManager.getSessionName(),
+            cwd: this.cwd,
+            lastAssistantText: this.inner.getLastAssistantText() ?? "",
+          }).catch((error) => {
+            console.error("[pi-web] failed to dispatch completion push:", error instanceof Error ? error.message : error);
+          });
+        }
       }
       this.emit(event);
       // Streaming / compaction / tool events flow through here; re-broadcast
@@ -166,6 +180,10 @@ export class AgentSessionWrapper {
   setForceEmptySystemPrompt(force: boolean): void {
     this.forceEmptySystemPrompt = force;
     this.applyForcedEmptySystemPrompt();
+  }
+
+  setNotificationAudience(account: string): void {
+    this.notificationAudience = account;
   }
 
   beginExtensionBinding(options: ExtensionBindingOptions = {}): void {

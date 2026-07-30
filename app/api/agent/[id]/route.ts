@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isChatManagedSessionPath, resolveSessionPath } from "@/lib/session-reader";
 import { startRpcSession, getRpcSession } from "@/lib/rpc-manager";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { getWebAuthSubject } from "@/lib/web-auth";
 
 // POST /api/agent/[id] - Send a command to an existing session
 export async function POST(
@@ -12,6 +13,7 @@ export async function POST(
 
   try {
     const body = await req.json() as { type: string; [key: string]: unknown };
+    const notificationAccount = body.type === "prompt" ? getWebAuthSubject(req) : null;
 
     const filePath = await resolveSessionPath(id);
     if (!filePath) {
@@ -27,6 +29,7 @@ export async function POST(
     // Fast path only after the server-side ownership check above.
     const existing = getRpcSession(id);
     if (existing?.isAlive()) {
+      if (notificationAccount) existing.setNotificationAudience(notificationAccount);
       const result = await existing.send(body);
       return NextResponse.json({ success: true, data: result });
     }
@@ -34,6 +37,7 @@ export async function POST(
     const cwd = SessionManager.open(filePath).getHeader()?.cwd ?? process.cwd();
 
     const { session } = await startRpcSession(id, filePath, cwd);
+    if (notificationAccount) session.setNotificationAudience(notificationAccount);
     const result = await session.send(body);
 
     return NextResponse.json({ success: true, data: result });

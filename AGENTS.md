@@ -47,6 +47,7 @@ app/api/
   agent/[id]/route.ts             GET state | POST any command
   agent/[id]/events/route.ts      GET SSE stream
   agent/running/events/route.ts   GET SSE stream of currently-running session ids
+  auth/session/route.ts           GET/POST/DELETE Pi Web app login session
   auth/all-providers/route.ts     GET API-key provider list
   auth/api-key/[provider]/route.ts GET/POST/DELETE provider API key status/storage
   auth/login/[provider]/route.ts  GET OAuth/device-code SSE | POST manual code
@@ -67,6 +68,9 @@ app/api/
   skills/search/route.ts          GET/POST skills.sh search
   worktrees/route.ts              GET/POST/DELETE git worktrees
 
+app/login/
+  page.tsx                        public app-owned login route for PWA recovery
+
 lib/
   agent-client.ts      typed fetch helper for /api/agent commands
   draft-store.ts       local draft persistence helpers
@@ -80,9 +84,11 @@ lib/
   tool-presets.ts     PRESET_NONE/DEFAULT/FULL + getPresetFromTools()
   types.ts            shared TypeScript types
   normalize.ts        normalizeToolCalls() — field name mismatch between file format and our types
+  web-auth.ts         signed app-session tokens + auth configuration
   worktree.ts         project/worktree resolution and git worktree operations
 
 components/
+  AuthSessionMonitor.tsx redirects expired fetch/SSE/PWA sessions to /login
   AppShell.tsx        layout + URL state + tab management
   SessionSidebar.tsx  session tree + FileExplorer
   ChatWindow.tsx      chat composition + completion sound wrapper
@@ -167,9 +173,17 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 
 ### Auth and model config
 - `ModelsConfig` combines models from `~/.pi/agent/models.json` with provider auth status from pi's `AuthStorage`/`ModelRegistry`.
+- Pi Web application login supports multiple accounts from `PI_WEB_AUTH_CREDENTIALS_FILE`; signed cookies are bound to the matching account. The legacy single-account username/password-file settings remain supported.
 - OAuth/device-code/manual-code flows are streamed by `GET /api/auth/login/[provider]`; manual code responses POST back with a short-lived token stored in `globalThis.__piLoginCallbacks`.
 - API-key routes store and remove keys through `AuthStorage`. Status endpoints must never return the raw key.
 - The model test route is `app/api/models-config/test/route.ts`; `app/api/models/test/` is not a real route.
+
+### PWA app authentication
+- Public mobile deployment uses the app-owned `/login` route, not Nginx `auth_basic`; native Basic Auth prompts are unreliable in installed iOS PWAs.
+- `proxy.ts` protects pages and APIs with the signed `pi-web-session` HttpOnly cookie while allowing only login prerequisites, static app assets, and `/api/health` through.
+- Authentication is disabled for ordinary local development unless any `PI_WEB_AUTH_*` variable is present. Partial configuration fails closed with `503`.
+- Password and cookie-signing key stay in separate gitignored files. Rotating the password invalidates existing cookies through the token credential fingerprint.
+- `AuthSessionMonitor` redirects `401` fetch responses immediately and checks `/api/auth/session` every 60 seconds plus `visibilitychange`/`online`/`pageshow`, covering EventSource reconnects that hide their HTTP status.
 
 ### Completion sound
 - `hooks/useAudio.ts` stores the toggle in `localStorage` as `pi-sound-enabled` and reuses one `AudioContext`.

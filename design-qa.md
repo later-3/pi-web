@@ -1,4 +1,73 @@
-# Mobile Session Deck — Design QA
+# PWA App Login — Design QA (Latest)
+
+## Comparison Target
+
+- Selected visual truth: `/Users/xulater/.codex/generated_images/019fac8e-bf8f-7522-86a5-d1081c4e157d/exec-0a864fd2-c3e8-4c44-b175-52f3e6cf43d5.png`
+- Normalized login crop: `/Users/xulater/Code/pi-web/docs/design/pwa-auth/source-login-390x844.png`
+- Browser-rendered implementation: `/Users/xulater/Code/pi-web/docs/design/pwa-auth/login-final-390x844.png`
+- Full comparison: `/Users/xulater/Code/pi-web/docs/design/pwa-auth/comparison-login.png`
+- Focused form comparison: `/Users/xulater/Code/pi-web/docs/design/pwa-auth/comparison-form-focus.png`
+- Intended CSS viewport: `390 × 844`, `devicePixelRatio = 1`.
+- Source pixels: `1750 × 899`; selected login frame cropped from the generated two-frame board at `848 × 866`, then normalized to `390 × 844`.
+- Implementation pixels: `390 × 844`.
+- State: unauthenticated, expired session, light theme, empty credentials, persistent-login checkbox selected.
+
+## Full-view Comparison Evidence
+
+The implementation preserves the selected direction's hierarchy: centered Pi Web identity, explicit expired-session reason, two labeled credential fields, password visibility action, persistent-login choice, single blue primary action, and a quiet HTTPS/security note. The mobile layout stays within the viewport and all interactive controls remain reachable without scrolling.
+
+The generated source board did not preserve the requested `390 × 844` frame ratio: each of its two panels was roughly square within a `1750 × 899` image. Its login form therefore becomes unnaturally narrow when normalized to a real phone viewport. The implementation intentionally keeps 24px phone margins and 342px fields so 16px input text and 44px+ touch targets remain usable on the actual PWA.
+
+## Focused Comparison Evidence
+
+`comparison-form-focus.png` verifies the alert, labels, fields, visibility icon, persistence control, primary button, and security note together at equal pixel density. Copy, order, semantic colors, and control affordances match. The implementation uses the existing system sans-serif and Tabler icon language rather than reproducing ImageGen's narrow synthetic glyphs.
+
+## Findings
+
+- No actionable P0/P1/P2 differences remain for the approved PWA login scope.
+- Accepted functional deviation: the checkbox defaults to selected because the goal is to prevent repeated PWA authentication interruptions; the selected visual left it unselected.
+- Accepted functional deviation: the login button is disabled until both fields are present, so its empty-form color is lighter than the mock's enabled blue button.
+- Accepted responsive deviation: form controls use the readable mobile content width instead of the source board's incorrectly normalized narrow column.
+
+## Required Fidelity Surfaces
+
+- Fonts and typography: existing system sans-serif, 16px inputs (prevents iOS focus zoom), compact labels, centered 29px title, and readable line heights preserve Pi Web's visual language.
+- Spacing and layout rhythm: centered brand and intro now align with the selected direction; 54px brand-to-title space and consistent 22px form rhythm keep the screen calm without hiding controls below the fold.
+- Colors and visual tokens: white surface, `#2563eb` accent, muted gray copy, and pale red expired-session alert match the approved palette with accessible contrast.
+- Image quality and asset fidelity: no raster imagery was required. Existing Pi wordmark treatment and `@tabler/icons-react` provide sharp interface assets at every density.
+- Copy and content: the page states why login is required, preserves “保持登录 30 天”, and explains that passwords are not stored in the browser.
+
+## Interaction Verification
+
+- Protected `/?session=restore-me` returned `307` to `/login?next=%2F%3Fsession%3Drestore-me` with no native Basic Auth challenge.
+- `/login` rendered at `390 × 844`; browser console check returned zero errors.
+- Wrong credentials produced the inline error and HTTP `401`.
+- Correct credentials produced HTTP `200`, created the session cookie, and restored `/?session=restore-me`.
+- Authenticated `/api/auth/session` returned HTTP `200`.
+- A chunked login payload over 4096 bytes returned HTTP `413`.
+- Unit tests cover signature tampering, expiry, password rotation, open-redirect rejection, public-route scope, HTTPS cookie behavior, and required-auth fail-closed configuration.
+
+## Comparison History
+
+### Iteration 1
+
+- [P2] The first mobile capture used left-aligned branding and placed the form roughly 70px above the selected direction.
+  - Fix: centered the brand and intro, restored the source's vertical spacing, and kept the form inside the 390 × 844 viewport.
+
+### Iteration 2
+
+- Post-fix evidence: `login-final-390x844.png`, `comparison-login.png`, and `comparison-form-focus.png`.
+- No remaining actionable P0/P1/P2 findings.
+
+## Follow-up Polish
+
+- [P3] Capture the same state from the real installed iPhone after deployment to confirm physical safe-area spacing under standalone status-bar chrome.
+
+final result: passed
+
+---
+
+# Archived: Mobile Session Deck — Design QA
 
 ## Comparison Target
 

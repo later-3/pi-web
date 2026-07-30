@@ -26,7 +26,7 @@ PWA 安装仅影响「打开方式」——以独立窗口运行、显示自定�
 3. 向下滑动，选择「添加到主屏幕」/「Add to Home Screen」
 4. 点击右上角「添加」
 
-> **注意**：现代 iOS Safari 支持 Web App Manifest；Next.js 的 `appleWebApp.capable` 同时作为 Apple 平台兼容补充。iOS 16.4+ 支持从主屏幕启动的 PWA 使用 Web Push（本项目未使用）。
+> **注意**：现代 iOS Safari 支持 Web App Manifest；Next.js 的 `appleWebApp.capable` 同时作为 Apple 平台兼容补充。iOS 16.4+ 支持从主屏幕启动的 PWA 使用 Web Push。
 
 ### 验证安装成功
 
@@ -70,6 +70,7 @@ PWA 安装仅影响「打开方式」——以独立窗口运行、显示自定�
 `public/sw.js` 是一个最小化 Service Worker：
 - ✅ 处理 `install` / `activate` 生命周期
 - ✅ `skipWaiting()` + `clients.claim()` 确保更新即时生效
+- ✅ 接收 Web Push、显示完成通知并处理会话深链
 - ✅ 响应 `GET_SW_VERSION` 消息用于诊断
 - ❌ 不注册 `fetch` 事件——所有请求直达网络
 - ❌ 不缓存任何资源
@@ -79,7 +80,7 @@ PWA 安装仅影响「打开方式」——以独立窗口运行、显示自定�
 - 缓存 HTML 会导致部署后页面陈旧
 - 缓存 `/api/**` 会破坏 SSE 流、认证、会话操作
 - POST 请求不能被 SW 正确重放
-- Basic Auth 与 SW 缓存可能冲突
+- 缓存登录页或认证响应会导致过期状态无法可靠恢复
 
 **更新机制：**
 - `/sw.js` 响应头设置为 `no-cache, no-store, must-revalidate`
@@ -87,11 +88,28 @@ PWA 安装仅影响「打开方式」——以独立窗口运行、显示自定�
 - 文件内容变化（`SW_VERSION` 更新）触发 `install` → `activate` 流程
 - 旧 SW 被替换，新 SW 立即接管
 
+### 完成推送
+
+聊天输入区右下角的“运行设置”按钮会在输入框上方打开两列设置面板，其中的推送项用于开启、关闭或重试推送。首次开启会立即发送一条测试通知；之后由服务端在 `agent_end` 时发送：
+
+- 标题：`Pi 已完成`
+- 正文：`会话名 · 最后回复摘要`，摘要最多 120 个字符
+- 点击：打开 `/?session=<sessionId>` 对应会话
+- 隔离：只向发起该任务的登录账号所绑定设备发送
+
+推送项使用文字显示真实状态：`已开启`、`已关闭`、`待测试`、`发送失败`、`系统已阻止`。系统通知权限已开启不等于 Web Push 订阅已经验证；只有测试通知成功投递后才显示 `已开启`。
+
+VAPID 密钥和设备订阅保存在 `~/.pi/agent/pi-web-push.json`，权限为 `0600`。过期订阅收到推送服务的 `404/410` 后自动清理。可用 `PI_WEB_PUSH_SUBJECT` 指定 VAPID 联系主体；反向代理提供 HTTPS 外部 Origin 时无需额外配置。
+
+iOS 上必须满足 3 个条件：iOS/iPadOS 16.4+、已添加到主屏幕并以 Web App 打开、由用户点击铃铛触发系统授权。普通 Safari 标签页不能订阅 iPhone Web Push。
+
 ### 缓存策略总结
 
 | 资源 | Cache-Control | 原因 |
 |------|---------------|------|
 | `/`（HTML） | `private, no-cache, must-revalidate` | 始终获取最新版本 |
+| `/login` | `private, no-store, max-age=0` | 登录状态必须实时判断 |
+| `/api/auth/session` | `private, no-store, max-age=0` | 禁止缓存认证响应 |
 | `/manifest.webmanifest` | `public, no-cache, max-age=0, must-revalidate` | 安装元数据随部署更新 |
 | `/sw.js` | `no-cache, no-store, must-revalidate` | SW 更新检测 |
 | `/icon-*.png` | `public, max-age=86400, stale-while-revalidate=604800` | 固定文件名，一天后允许后台更新 |
@@ -103,9 +121,13 @@ PWA 安装仅影响「打开方式」——以独立窗口运行、显示自定�
 
 ## 不影响的功能
 
-以下功能经确认不受 PWA 实现影响：
+以下功能与 PWA 认证恢复机制协同工作：
 
-- ✅ Basic Auth（SW 不拦截请求）
+- ✅ 独立 `/login` 页面（不依赖浏览器原生密码框）
+- ✅ HttpOnly 签名 Cookie（密码不保存在浏览器中）
+- ✅ PWA 从后台恢复时检查登录状态
+- ✅ API 返回 401 时立即跳转登录页，并保留原会话 URL
+- ✅ SSE 重连由认证心跳兜底，最长 60 秒进入登录页
 - ✅ SSE 流式传输（无 fetch handler）
 - ✅ 图片上传（POST 不经过 SW）
 - ✅ 复制粘贴（standalone 模式保留剪贴板 API）

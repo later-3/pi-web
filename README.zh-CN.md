@@ -37,10 +37,28 @@ PORT=8080 pi-web                # 也支持环境变量
 PI_WEB_HOSTNAME=0.0.0.0 pi-web  # 显式开放网络访问
 PI_WEB_ALLOWED_HOSTS=pi-web.internal pi-web  # 允许指定的代理或自定义主机名
 PI_WEB_NO_OPEN=1 pi-web         # 适用于后台服务或开机自启
+
+# 在可信 HTTPS 反向代理后启用独立登录页（多账号）：
+PI_WEB_AUTH_REQUIRED=1 \
+PI_WEB_AUTH_CREDENTIALS_FILE=/账号文件的绝对路径 \
+PI_WEB_AUTH_SESSION_SECRET_FILE=/会话签名密钥文件的绝对路径 \
+PI_WEB_ALLOWED_HOSTS=pi.example.com \
+pi-web
 ```
 
-Pi Web 没有应用层身份验证，并且可以调用高权限智能体。请勿将其暴露到互联网；仅在可信网络中使用非 loopback 监听地址。
+账号文件使用 `{"credentials":[{"username":"用户名","password":"密码"}]}` 格式，建议权限设为 `600`。也兼容原有的 `PI_WEB_AUTH_USERNAME` + `PI_WEB_AUTH_PASSWORD_FILE` 单账号配置，但不能与多账号文件同时使用。只要配置了认证相关设置，应用层身份验证就会启用。启用后，`/login` 会签发绑定到具体账号的带签名 HttpOnly 会话 Cookie；公网部署应设置 `PI_WEB_AUTH_REQUIRED=1`，确保凭据缺失时拒绝访问，不会静默裸奔。Pi Web 可以调用高权限智能体，请勿通过明文 HTTP 或不可信反向代理暴露到互联网。
 API 请求仅接受 loopback 名称、IP 字面量、当前监听主机名，以及 `PI_WEB_ALLOWED_HOSTS` 中以逗号分隔的精确主机名。可信反向代理使用不同的外部主机名时，请配置该变量。
+
+### 仓库部署：启动手机公网服务
+
+当前仓库已配置 Mac production、SSH 反向隧道、云端 Nginx 和 Cloudflare。日常启动与验证：
+
+```bash
+./scripts/manage-pi-web.sh start
+./scripts/verify-mobile-relay.sh
+```
+
+电脑访问 <http://127.0.0.1:30141>，手机访问 <https://pi.ai4child.asia>。首次安装、停止/重启、日志、所有脚本和云服务器排障命令见 [Pi Web 启动与手机服务器操作手册](./docs/pi-web-service.zh-CN.md)。
 
 ## HTTP 代理
 
@@ -85,6 +103,10 @@ npx @agegr/pi-web@latest
 - **Fork 与会话内分支不同**：Fork 会创建新的 `.jsonl` 文件；“Edit from here” 是同一会话文件里的分支。
 
 ## 开发
+
+本机 production 与手机公网服务的启动、停止、重启、日志和重新部署方式，见 [Pi Web 启动与手机服务器操作手册](./docs/pi-web-service.zh-CN.md)。
+
+Session、模型、Thinking、上下文、工具验证和停止续接的实践方法，见 [Pi Agent + 模型使用手册](./docs/pi-agent-model-usage.zh-CN.md)。
 
 ```bash
 npm install

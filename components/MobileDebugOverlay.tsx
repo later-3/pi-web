@@ -80,15 +80,35 @@ function getChecks(): CheckResult[] {
   if (composer) {
     const rect = composer.getBoundingClientRect();
     const vv = window.visualViewport;
-    const visibleBottom = (vv?.offsetTop ?? 0) + (vv?.height ?? window.innerHeight);
+    const visualBottom = (vv?.offsetTop ?? 0) + (vv?.height ?? window.innerHeight);
+    const shellBottom = document.querySelector(".app-shell-root")?.getBoundingClientRect().bottom;
+    const keyboardOpen = document.documentElement.dataset.virtualKeyboard === "open";
+    // In a closed standalone PWA, WebKit can under-report VisualViewport by
+    // exactly the omitted safe areas. The 100vh shell is the resting viewport.
+    const visibleBottom = keyboardOpen
+      ? visualBottom
+      : Math.max(visualBottom, shellBottom ?? visualBottom);
     const composerVisible = rect.bottom <= visibleBottom + 2;
     results.push({
       label: "Composer visible",
       pass: composerVisible,
       detail: `bottom=${rect.bottom.toFixed(0)} visible=${visibleBottom.toFixed(0)}`,
     });
+
+    // A composer can be technically visible while the entire application has
+    // been sized to a stale short iOS PWA viewport. Allow exactly the normal
+    // 8px gap or the device safe area, plus a small sub-pixel tolerance.
+    const safeBottom = parseFloat(safBottom) || 0;
+    const bottomGap = Math.max(0, visibleBottom - rect.bottom);
+    const expectedGap = Math.max(8, safeBottom);
+    results.push({
+      label: "Composer bottom gap",
+      pass: bottomGap <= expectedGap + 4,
+      detail: `gap=${bottomGap.toFixed(0)} expected≤${(expectedGap + 4).toFixed(0)}`,
+    });
   } else {
     results.push({ label: "Composer visible", pass: false, detail: "select or create a session" });
+    results.push({ label: "Composer bottom gap", pass: false, detail: "composer missing" });
   }
 
   // 7. Drawer count (sidebar + right panel should not both be open)

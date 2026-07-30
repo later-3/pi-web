@@ -110,6 +110,16 @@ body {
   height: 100dvh;
 }
 
+/* WebKit bug 254868: installed apps with viewport-fit=cover can subtract the
+   safe areas from dvh/svh. In standalone mode, 100vh covers the full display. */
+@media (display-mode: standalone) {
+  html,
+  body {
+    height: 100vh;
+    min-height: 100vh;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -1245,13 +1255,19 @@ span.linenumber {
 
   /* Mobile composer safe area bottom */
   .mobile-composer {
-    margin: 8px 10px max(12px, calc(var(--safe-area-bottom) - 20px));
-    padding: 10px 10px max(10px, calc(var(--safe-area-bottom) - 8px)) !important;
+    margin: 6px 8px max(8px, var(--safe-area-bottom));
+    padding: 8px !important;
     background: color-mix(in srgb, var(--mobile-surface) 96%, transparent) !important;
     border: 1px solid var(--mobile-border);
     border-radius: var(--mobile-radius-sheet);
     box-shadow: 0 8px 28px rgba(15, 23, 42, 0.09);
     backdrop-filter: blur(14px);
+  }
+
+  /* The keyboard covers the Home-indicator region, so keep only the ordinary
+     composer gap while the shell is fitted to the Visual Viewport. */
+  html[data-virtual-keyboard="open"] .mobile-composer {
+    margin-bottom: 8px;
   }
 
   .mobile-composer div:has(> textarea) {
@@ -1263,9 +1279,100 @@ span.linenumber {
   }
 
   .mobile-composer-controls {
-    margin-top: 4px !important;
-    padding-top: 7px;
+    margin-top: 2px !important;
+    padding-top: 6px;
     border-top: 1px solid var(--mobile-border);
+  }
+
+  .mobile-settings-panel {
+    align-items: stretch !important;
+    gap: 7px !important;
+  }
+
+  .mobile-settings-header {
+    grid-column: 1 / -1;
+    min-height: 42px;
+    padding: 0 2px 7px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px solid var(--mobile-border);
+  }
+
+  .mobile-settings-header > div {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mobile-settings-header strong,
+  .mobile-settings-header span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-settings-header strong {
+    color: var(--text);
+    font-size: 14px;
+  }
+
+  .mobile-settings-header span {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  .mobile-settings-header > button {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    background: var(--mobile-surface-muted);
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+  }
+
+  .mobile-settings-tile-wrapper {
+    min-width: 0;
+  }
+
+  .mobile-settings-tile-wrapper > button,
+  .mobile-settings-tile {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 44px !important;
+    padding: 0 12px !important;
+    justify-content: flex-start !important;
+    overflow: hidden;
+    background: var(--mobile-surface-muted) !important;
+    border: 1px solid var(--mobile-border) !important;
+    border-radius: 12px !important;
+  }
+
+  .mobile-settings-tile-wrapper > button span,
+  .mobile-settings-tile span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-settings-push {
+    grid-column: 1 / -1;
+  }
+
+  .mobile-settings-note {
+    grid-column: 1 / -1;
+    padding: 2px 4px 0;
+    color: var(--text-dim);
+    font-size: 11px;
+    line-height: 1.45;
   }
 
   /* Mobile top panel dropdowns: safe area aware */
