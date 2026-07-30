@@ -19,7 +19,7 @@
 | Provider Request 查看 | 把终端中的密集 JSON 变成可搜索、可放大的结构化视图 | `ProviderRequests.tsx`、`app/api/provider-requests/route.ts` | 小窗、全屏、长 JSON、错误响应 |
 | 运行状态恢复 | 后台、断网或漏 SSE 后不会永久显示“运行中” | `hooks/useAgentSession.ts`、`lib/rpc-manager.ts` | SSE/reconciliation 测试 |
 | 运维脚本 | 安装、启动、停止、日志和全链路检查可重复执行 | `scripts/manage-pi-web.sh`、`scripts/verify-mobile-relay.sh` | `status` 与健康检查均为 0 |
-| 多设备目录与切换 | 在桌面/手机选择另一台 Pi Web，同时保留每台设备的本地 Session 边界 | `lib/device-directory*`、`DeviceSwitcher.tsx`、`GET /api/devices` | 目录/组件测试 + 两设备真机切换 |
+| 同终端多设备切换 | 在一个 origin、一个登录和一个 PWA 内切换执行设备，同时保留本地 Session 边界 | `lib/device-directory*`、`DeviceSwitcher.tsx`、`GET/POST /api/devices*` | 目录/API/组件测试 + 双设备网关验收 |
 
 ## 配置矩阵
 
@@ -35,6 +35,7 @@
 | `PI_WEB_DEVICE_ID` | 多设备时推荐 | 当前设备稳定小写 slug，例如 `linux-home` | 不放 IP、用户名或秘密 |
 | `PI_WEB_DEVICE_NAME` | 多设备时推荐 | 手机/桌面显示名 | 最长 80 字符，不允许控制字符 |
 | `PI_WEB_PUBLIC_URL` | 多设备时推荐 | 当前设备根 URL | 仅 `http(s)` origin，不带 path/query/credentials |
+| `PI_WEB_DEVICE_GATEWAY_URL` | 同 origin 网关时 | 手机唯一入口；仅当请求 origin 与它相同时启用 gateway 模式 | 网关成员必须配置相同值 |
 | `PI_WEB_DEVICES_FILE` | 配置 2 台以上时 | 非敏感 version 1 JSON 目录绝对路径 | 最大 64 KiB、最多 32 台；本地实际文件可忽略 |
 
 ### 应用登录配置
@@ -70,7 +71,8 @@ Push 内容只使用有界预览和 Session 深链，不发送完整对话。HTT
 6. 同一个 Session 文件不能同时由原生 Pi CLI 和 Pi Web 写入。
 7. 开发使用 `.next/`，production 使用 `.next-mobile/`；开发中禁止运行普通 `next build`。
 8. 移动端高度在键盘关闭时由 CSS 控制，只有可编辑控件聚焦且确认为软键盘时才采用 Visual Viewport。
-9. 多设备一期只切换浏览器目标，不迁移运行中的 Agent；长期统一 PWA 通过单 origin 网关实现，不在核心应用里硬编码隧道 provider。
+9. 同 origin 网关只切换后端路由，不迁移运行中的 Agent；`pi_web_device` 只能由受保护 API 写入，Nginx 只接受已知 id，控制面固定到主设备以保证故障回切。
+10. 同一网关内的设备共享应用账号和 Cookie 签名密钥，但 Session、Provider/OAuth、项目文件、Push store 与 Agent 进程仍留在各设备。
 
 ## 文档导航
 

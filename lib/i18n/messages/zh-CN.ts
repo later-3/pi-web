@@ -13,6 +13,8 @@ export const zhCNLocale: LocalePlugin = {
     "devices.label": "设备",
     "devices.current": "当前",
     "devices.open": "切换设备，当前设备：{name}",
+    "devices.switching": "正在切换…",
+    "devices.switchFailed": "无法切换设备",
     "sidebar.hide": "隐藏侧边栏",
     "sidebar.show": "显示侧边栏",
     "theme.light": "切换到浅色模式",

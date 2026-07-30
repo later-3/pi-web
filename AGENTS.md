@@ -77,6 +77,7 @@ app/api/
   models-config/discover/route.ts POST fetch a configured provider's upstream model list
   models-config/test/route.ts     POST test a configured model/provider
   devices/route.ts                GET non-sensitive current/configured device directory
+  devices/select/route.ts         POST same-origin gateway device preference cookie
   plugins/route.ts                GET/POST package plugin management
   skills/route.ts                 GET/PATCH loaded skills and disable-model-invocation
   skills/install/route.ts         POST install skills through npx skills add
@@ -102,6 +103,8 @@ lib/
   web-auth.ts         signed app-session tokens + auth configuration
   device-directory-core.ts pure device validation, normalization, and limits
   device-directory.ts environment/file adapter with bounded metadata cache
+  device-selection.ts gateway cookie/body constants
+  device-selection-client.ts bounded same-origin selection request
   request-origin.ts  shared reverse-proxy-aware external origin metadata
   worktree.ts         project/worktree resolution and git worktree operations
 
@@ -209,7 +212,10 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 ### Multi-device access
 - Phase 1 uses a bounded, non-sensitive JSON device directory plus `PI_WEB_DEVICE_*` environment metadata. Invalid configuration hides the switcher but never blocks the current device.
 - `AppShell` loads `/api/devices` once; parsing and file IO stay in `lib/device-directory*`, while `DeviceSwitcher` owns only interaction and navigation.
-- Direct cross-origin navigation is a functional bridge, not the final PWA architecture. The long-term target is a single-origin gateway with sticky routing, central auth, health aggregation, and Push brokering.
+- When `PI_WEB_DEVICE_GATEWAY_URL` matches the external request origin, switching POSTs to `/api/devices/select`, sets the HttpOnly `pi_web_device` preference, and reloads the same origin. Other origins retain direct-URL fallback behavior.
+- The gateway must map only known cookie values, default unknown values to the primary device, and route `/api/devices/select` through the primary control plane so users can switch back from an unavailable worker.
+- All devices behind one gateway origin must run a compatible build and share the application credentials/session-signing secret. Sessions, files, Provider credentials, Agent state, and Pi data remain device-local.
+- Direct per-device origins are break-glass/maintenance adapters, not the normal phone UX. Health aggregation and centralized Push brokering remain later gateway work.
 - Do not implement runtime `/devices/<id>` path-prefix proxying inside Pi Web: Next.js `basePath` is build-time, while the app, APIs, manifest, and Service Worker use root paths.
 - Full decision, performance budgets, failure modes, and SSH deployment sequence: `docs/multi-device-architecture.zh-CN.md`.
 

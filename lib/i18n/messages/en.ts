@@ -13,6 +13,8 @@ export const enLocale: LocalePlugin = {
     "devices.label": "Devices",
     "devices.current": "Current",
     "devices.open": "Switch device. Current device: {name}",
+    "devices.switching": "Switching…",
+    "devices.switchFailed": "Unable to switch device",
     "sidebar.hide": "Hide sidebar",
     "sidebar.show": "Show sidebar",
     "theme.light": "Switch to light mode",

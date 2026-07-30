@@ -127,10 +127,18 @@
   font-weight: 600;
 }
 
-.itemUrl {
+.itemUrl,
+.itemStatus {
   color: var(--text-dim);
   font-family: var(--font-mono);
   font-size: 10px;
+}
+
+.error {
+  margin: 5px 4px 2px;
+  color: #dc2626;
+  font-size: 10px;
+  line-height: 1.4;
 }
 
 .current {

@@ -16,11 +16,15 @@ export interface DeviceDirectoryDiagnostic {
   message: string;
 }
 
+export type DeviceSelectionMode = "direct" | "gateway";
+
 export interface DeviceDirectoryResponse {
   version: typeof DEVICE_DIRECTORY_VERSION;
   currentDeviceId: string;
   devices: DeviceDescriptor[];
   diagnostics: DeviceDirectoryDiagnostic[];
+  selectionMode: DeviceSelectionMode;
+  gatewayUrl: string | null;
 }
 
 interface DeviceValidationResult {
@@ -104,29 +108,39 @@ export function buildDeviceDirectory(
   input: unknown,
   currentInput: unknown,
   fallbackUrl: string,
+  gatewayInput?: unknown,
 ): DeviceDirectoryResponse {
   const diagnostics: DeviceDirectoryDiagnostic[] = [];
+  const configuredGatewayUrl = normalizeDeviceUrl(gatewayInput);
+  if (typeof gatewayInput === "string" && gatewayInput.trim() && !configuredGatewayUrl) {
+    diagnostics.push(diagnostic(
+      "invalid-gateway-url",
+      "Configured device gateway must be a root http(s) origin",
+    ));
+  }
+  const requestOrigin = normalizeDeviceUrl(fallbackUrl);
+  const selectionMode: DeviceSelectionMode = configuredGatewayUrl && configuredGatewayUrl === requestOrigin
+    ? "gateway"
+    : "direct";
   const currentResult = validateDevice(currentInput, "currentDevice");
   const currentDevice = currentResult.device ?? fallbackCurrentDevice(fallbackUrl);
   if (currentResult.diagnostic) diagnostics.push(currentResult.diagnostic);
+  const finish = (devices: DeviceDescriptor[]): DeviceDirectoryResponse => ({
+    version: DEVICE_DIRECTORY_VERSION,
+    currentDeviceId: currentDevice.id,
+    devices,
+    diagnostics,
+    selectionMode,
+    gatewayUrl: configuredGatewayUrl,
+  });
 
   if (input === undefined || input === null) {
-    return {
-      version: DEVICE_DIRECTORY_VERSION,
-      currentDeviceId: currentDevice.id,
-      devices: [currentDevice],
-      diagnostics,
-    };
+    return finish([currentDevice]);
   }
 
   if (!isRecord(input)) {
     diagnostics.push(diagnostic("invalid-directory", "Device directory must be an object"));
-    return {
-      version: DEVICE_DIRECTORY_VERSION,
-      currentDeviceId: currentDevice.id,
-      devices: [currentDevice],
-      diagnostics,
-    };
+    return finish([currentDevice]);
   }
 
   if (input.version !== DEVICE_DIRECTORY_VERSION) {
@@ -134,22 +148,12 @@ export function buildDeviceDirectory(
       "unsupported-directory-version",
       `Device directory version must be ${DEVICE_DIRECTORY_VERSION}`,
     ));
-    return {
-      version: DEVICE_DIRECTORY_VERSION,
-      currentDeviceId: currentDevice.id,
-      devices: [currentDevice],
-      diagnostics,
-    };
+    return finish([currentDevice]);
   }
 
   if (!Array.isArray(input.devices)) {
     diagnostics.push(diagnostic("invalid-device-list", "Device directory devices must be an array"));
-    return {
-      version: DEVICE_DIRECTORY_VERSION,
-      currentDeviceId: currentDevice.id,
-      devices: [currentDevice],
-      diagnostics,
-    };
+    return finish([currentDevice]);
   }
 
   if (input.devices.length > MAX_DEVICE_COUNT) {
@@ -192,12 +196,7 @@ export function buildDeviceDirectory(
     devices.push(result.device);
   }
 
-  return {
-    version: DEVICE_DIRECTORY_VERSION,
-    currentDeviceId: currentDevice.id,
-    devices: [currentDevice, ...devices],
-    diagnostics,
-  };
+  return finish([currentDevice, ...devices]);
 }
 
 export function isDeviceDirectoryResponse(value: unknown): value is DeviceDirectoryResponse {
@@ -208,7 +207,12 @@ export function isDeviceDirectoryResponse(value: unknown): value is DeviceDirect
     || value.devices.length < 1
     || value.devices.length > MAX_DEVICE_COUNT + 1
     || !Array.isArray(value.diagnostics)
+    || (value.selectionMode !== "direct" && value.selectionMode !== "gateway")
+    || (value.gatewayUrl !== null && typeof value.gatewayUrl !== "string")
   ) return false;
+
+  if (value.gatewayUrl !== null && normalizeDeviceUrl(value.gatewayUrl) !== value.gatewayUrl) return false;
+  if (value.selectionMode === "gateway" && value.gatewayUrl === null) return false;
 
   const devices = value.devices.flatMap((device, index) => {
     const result = validateDevice(device, `devices[${index}]`);

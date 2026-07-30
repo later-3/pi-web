@@ -23,6 +23,7 @@ public_hostname="${PI_WEB_PUBLIC_HOSTNAME:-pi.ai4child.asia}"
 device_id="${PI_WEB_DEVICE_ID:-mac-main}"
 device_name="${PI_WEB_DEVICE_NAME:-Main Mac}"
 device_public_url="${PI_WEB_PUBLIC_URL:-https://$public_hostname}"
+device_gateway_url="${PI_WEB_DEVICE_GATEWAY_URL:-https://$public_hostname}"
 devices_file="${PI_WEB_DEVICES_FILE:-$project_root/deploy/devices.local.json}"
 user_name="$(id -un)"
 user_id="$(id -u)"
@@ -252,6 +253,8 @@ sed \
   -string "$device_name" "$production_plist"
 /usr/bin/plutil -insert EnvironmentVariables.PI_WEB_PUBLIC_URL \
   -string "$device_public_url" "$production_plist"
+/usr/bin/plutil -insert EnvironmentVariables.PI_WEB_DEVICE_GATEWAY_URL \
+  -string "$device_gateway_url" "$production_plist"
 /usr/bin/plutil -insert EnvironmentVariables.PI_WEB_DEVICES_FILE \
   -string "$devices_file" "$production_plist"
 

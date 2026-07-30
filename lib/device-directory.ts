@@ -98,6 +98,7 @@ export async function loadDeviceDirectory({
       url: env.PI_WEB_PUBLIC_URL?.trim() || requestOrigin,
     },
     requestOrigin,
+    env.PI_WEB_DEVICE_GATEWAY_URL,
   );
 
   return {
