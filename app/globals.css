@@ -1126,8 +1126,9 @@ span.linenumber {
   }
 
   .mobile-project-switcher {
+    flex: 1 1 auto;
     min-width: 0;
-    max-width: calc(100% - 160px);
+    max-width: none;
     padding: 0 12px;
     display: flex;
     align-items: center;
@@ -1158,9 +1159,10 @@ span.linenumber {
   }
 
   .mobile-header-actions {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
 
   .mobile-icon-button {
@@ -1239,6 +1241,12 @@ span.linenumber {
     display: flex;
     flex-direction: column;
     gap: 3px;
+  }
+
+  .mobile-action-sheet-header > .mobile-action-sheet-header-actions {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: 6px;
   }
 
   .mobile-action-sheet-header strong,

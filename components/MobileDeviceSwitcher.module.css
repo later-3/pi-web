@@ -1,0 +1,219 @@
+.trigger {
+  position: relative;
+  width: min(112px, 29vw);
+  min-width: 44px;
+  height: 44px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  background: var(--mobile-control);
+  border: 1px solid var(--mobile-border);
+  border-radius: var(--mobile-radius-control);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.triggerName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.triggerChevron {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.liveDot {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--mobile-positive);
+  box-shadow: 0 0 0 2px var(--mobile-control);
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 810;
+  padding: 0;
+  background: rgba(15, 23, 42, 0.34);
+  border: 0;
+  backdrop-filter: blur(2px);
+}
+
+.sheet {
+  position: fixed;
+  left: max(10px, var(--safe-area-left));
+  right: max(10px, var(--safe-area-right));
+  bottom: max(10px, var(--safe-area-bottom));
+  z-index: 820;
+  max-height: min(520px, calc(var(--visual-viewport-height, 100dvh) - var(--safe-area-top) - 20px));
+  overflow-y: auto;
+  padding: 12px;
+  color: var(--text);
+  background: var(--mobile-surface);
+  border: 1px solid var(--mobile-border);
+  border-radius: var(--mobile-radius-sheet);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+  overscroll-behavior: contain;
+}
+
+.header {
+  min-height: 56px;
+  padding: 2px 2px 11px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--mobile-border);
+}
+
+.heading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.heading strong,
+.heading span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heading strong {
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.heading span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.closeButton {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: var(--mobile-control);
+  border: 1px solid var(--mobile-border);
+  border-radius: var(--mobile-radius-control);
+}
+
+.deviceList {
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.deviceRow {
+  width: 100%;
+  min-height: 62px;
+  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  text-align: left;
+  background: var(--mobile-surface-muted);
+  border: 1px solid var(--mobile-border);
+  border-radius: 13px;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.deviceRow:disabled {
+  opacity: 1;
+}
+
+.deviceRow[aria-busy="true"] {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--mobile-border));
+}
+
+.deviceIcon {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: var(--mobile-control);
+  border: 1px solid var(--mobile-border);
+  border-radius: 10px;
+}
+
+.currentIcon {
+  color: var(--accent);
+}
+
+.deviceText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.deviceText strong,
+.deviceText span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deviceText strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.deviceText span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.currentBadge {
+  padding: 4px 7px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.error {
+  margin: 9px 4px 2px;
+  color: #dc2626;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 360px) {
+  .trigger {
+    width: min(94px, 27vw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .backdrop {
+    scroll-behavior: auto;
+  }
+}

@@ -19,7 +19,7 @@
 | Provider Request 查看 | 把终端中的密集 JSON 变成可搜索、可放大的结构化视图 | `ProviderRequests.tsx`、`app/api/provider-requests/route.ts` | 小窗、全屏、长 JSON、错误响应 |
 | 运行状态恢复 | 后台、断网或漏 SSE 后不会永久显示“运行中” | `hooks/useAgentSession.ts`、`lib/rpc-manager.ts` | SSE/reconciliation 测试 |
 | 运维脚本 | 安装、启动、停止、日志和全链路检查可重复执行 | `scripts/manage-pi-web.sh`、`scripts/verify-mobile-relay.sh` | `status` 与健康检查均为 0 |
-| 同终端多设备切换 | 在一个 origin、一个登录和一个 PWA 内原位切换执行设备，不整页刷新，同时保留设备本地 Session 边界和工作区记忆 | `DeviceWorkspaceRoot.tsx`、`useDeviceWorkspace.ts`、`lib/device-workspace.ts`、`GET/POST /api/devices*` | 状态机/回滚/快照测试 + 双向生产视口验收 |
+| 同终端多设备切换 | 在一个 origin、一个登录和一个 PWA 内原位切换执行设备；手机端 2 次点击直达目标设备，不整页刷新，同时保留设备本地 Session 边界和工作区记忆 | `MobileDeviceSwitcher.tsx`、`DeviceWorkspaceRoot.tsx`、`useDeviceWorkspace.ts`、`lib/device-workspace.ts`、`GET/POST /api/devices*` | 交互/状态机/回滚/快照测试 + 双向生产视口验收 |
 
 ## 配置矩阵
 
@@ -75,6 +75,7 @@ Push 内容只使用有界预览和 Session 深链，不发送完整对话。HTT
 10. 同一网关内的设备共享应用账号和 Cookie 签名密钥，但 Session、Provider/OAuth、项目文件、Push store 与 Agent 进程仍留在各设备。
 11. gateway 模式切换不得调用 `window.location.reload/assign`；旧工作区必须先 unmount 完成连接清理，再修改路由 Cookie。目标探针失败要回滚原设备，切换成功只替换带 epoch key 的 React 工作区。
 12. 每台设备的最后 Session/cwd、文件页签和右侧面板只存于当前浏览器的有界 `sessionStorage` 快照；解析时必须丢弃损坏或越界数据，不能把设备状态混写到另一台设备。
+13. 手机设备入口属于一级导航：主界面点设备胶囊、设备面板点目标机器共 2 次点击。不得重新塞回“更多”菜单或叠加第二层下拉；切换提交前必须显示目标行忙碌状态，当前设备不可重复选择。
 
 ## 文档导航
 

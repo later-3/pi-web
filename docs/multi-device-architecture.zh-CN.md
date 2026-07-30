@@ -206,6 +206,7 @@ deploy/devices.example.json   非敏感示例
 - gateway/direct 模式判定与 gateway URL 规范化；
 - 选择 API 的 Host/Origin、content type、body 上限、unknown id 和 Cookie 属性；
 - 组件单设备时隐藏、多设备时显示、当前项不可选、中文/英文文本；
+- 手机端设备胶囊位于一级导航，设备面板直接列出目标机器，2 次点击完成选择；验证 44px 触控目标、忙碌/失败反馈、Esc/焦点闭环；
 - 目录 fetch abort/timeout、选择请求 5 秒 timeout 和卸载后不 setState；
 - Nginx 已知设备映射、未知值回退和固定控制面；
 - 旧 workspace 在修改 Cookie 前 unmount，gateway 模式只替换 React epoch、不调用 document navigation；

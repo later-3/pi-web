@@ -18,7 +18,7 @@ import {
 import { getFileName } from "@/lib/file-paths";
 import type { DeviceDescriptor, DeviceDirectoryResponse } from "@/lib/device-directory-core";
 import type { SessionInfo } from "@/lib/types";
-import { DeviceSwitcher } from "./DeviceSwitcher";
+import { MobileDeviceSwitcher } from "./MobileDeviceSwitcher";
 
 interface Props {
   selectedSession: SessionInfo | null;
@@ -128,6 +128,11 @@ export function MobileWorkspaceHeader({
         </button>
 
         <div className="mobile-header-actions">
+          <MobileDeviceSwitcher
+            directory={deviceDirectory}
+            runningCount={runningSessionIds.size}
+            onNavigate={onDeviceNavigate}
+          />
           <button
             type="button"
             className="mobile-icon-button"
@@ -136,15 +141,6 @@ export function MobileWorkspaceHeader({
             aria-label="Create new session in current project"
           >
             <IconPlus size={23} stroke={1.8} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={`mobile-icon-button${refreshing ? " is-refreshing" : ""}`}
-            onClick={handleRefresh}
-            aria-label="Refresh sessions and files"
-          >
-            <IconRefresh size={22} stroke={1.8} aria-hidden="true" />
-            {runningSessionIds.size > 0 && <span className="mobile-live-dot" aria-label={`${runningSessionIds.size} running sessions`} />}
           </button>
           <button
             type="button"
@@ -172,16 +168,20 @@ export function MobileWorkspaceHeader({
                 <strong>{projectName}</strong>
                 <span>{selectedSession ? sessionLabel(selectedSession) : "New session"}</span>
               </div>
-              <button type="button" className="mobile-icon-button" onClick={() => setMenuOpen(false)} aria-label="Close menu">
-                <IconX size={22} stroke={1.8} aria-hidden="true" />
-              </button>
+              <div className="mobile-action-sheet-header-actions">
+                <button
+                  type="button"
+                  className={`mobile-icon-button${refreshing ? " is-refreshing" : ""}`}
+                  onClick={handleRefresh}
+                  aria-label="Refresh sessions and files"
+                >
+                  <IconRefresh size={22} stroke={1.8} aria-hidden="true" />
+                </button>
+                <button type="button" className="mobile-icon-button" onClick={() => setMenuOpen(false)} aria-label="Close menu">
+                  <IconX size={22} stroke={1.8} aria-hidden="true" />
+                </button>
+              </div>
             </div>
-            <DeviceSwitcher
-              variant="mobile"
-              directory={deviceDirectory}
-              onBeforeNavigate={() => setMenuOpen(false)}
-              onNavigate={onDeviceNavigate}
-            />
             <div className="mobile-action-grid">
               <button type="button" onClick={() => { setMenuOpen(false); onOpenWorkspace(); }}>
                 <IconFolder size={21} stroke={1.7} aria-hidden="true" />

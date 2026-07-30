@@ -23,7 +23,8 @@ All features share the same `AppShell` / `ChatWindow` / `ChatInput` / `useAgentS
 | **New session** | Sidebar "+" button | Persistent header `+` and the same button in the overlay drawer | ✅ |
 | **Session select** | Click in sidebar | Same list in the overlay drawer | ✅ |
 | **Project select** | Sidebar selector | Project control in the mobile header → full drawer | ✅ |
-| **Manual refresh** | Sidebar refresh | Persistent header refresh for sessions + files | ✅ |
+| **Manual refresh** | Sidebar refresh | Mobile overflow sheet header refresh for sessions + files | ✅ |
+| **Execution device** | Desktop top-bar selector | Persistent header device pill → dedicated bottom sheet; target reached in 2 taps | ✅ |
 | **Session rename / delete** | Hover actions in sidebar | Per-session touch action sheet | ✅ |
 | **Session fork** | Fork button on user message | Same button | ✅ |
 | **Branch navigator** | Top bar inline button | Same button (compact mode) | ✅ |
@@ -69,6 +70,7 @@ All features share the same `AppShell` / `ChatWindow` / `ChatInput` / `useAgentS
 - The compact header opens the complete sidebar drawer for project and session selection; the chat surface does not duplicate session navigation.
 - Running state still comes from `/api/agent/running/events`, and all chat work stays on the shared `ChatWindow` / `useAgentSession` stack.
 - The mobile overflow sheet exposes projects/sessions, files, full history, theme, advanced session controls, and self-check without restoring the desktop toolbar to the primary screen.
+- Multi-device installations expose the current execution device beside the project control. Its dedicated sheet keeps the current device disabled, commits visible switching feedback before the workspace transition, traps focus, closes on Escape/backdrop, and restores focus to the trigger.
 - Mobile appearance is separated behind `--mobile-*` tokens so future themes can change color, surface, radius, and state styling without changing navigation or session behavior.
 
 ## Drawer Mutual Exclusion
@@ -91,6 +93,6 @@ On mobile, only one overlay panel can be open at a time:
 - The mobile sidebar exposes **Run mobile self-check**, so the same live checks can be opened from an installed PWA without an address bar
 - Select or create a session before running it; missing topbar/textarea/composer elements are reported as failures rather than silently skipped
 - `scripts/verify-mobile-ui.mjs` validates CSS breakpoint consistency (no dependencies)
-- `node --test lib/*.test.mjs` — all 124 existing tests pass
+- `rg --files -g '*.test.mjs' -0 | xargs -0 node --test` — all 260 tests pass
 - `tsc --noEmit` — zero type errors
 - `npm run lint` — zero lint errors

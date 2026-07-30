@@ -50,8 +50,9 @@ check(
 );
 
 check(
-  "All desktop breakpoints are 769px",
-  desktopBreakpoints.every((bp) => bp === 769),
+  "Desktop breakpoints use the intentional 641/769/960px layout tiers",
+  desktopBreakpoints.every((bp) => [641, 769, 960].includes(bp)) &&
+    [641, 769, 960].every((bp) => desktopBreakpoints.includes(bp)),
   `found: [${[...new Set(desktopBreakpoints)].join(", ")}]`,
 );
 check(
@@ -60,8 +61,8 @@ check(
 );
 
 check(
-  "No old 640px breakpoints remain",
-  !css.includes("max-width: 640px") && !css.includes("min-width: 641px"),
+  "No obsolete max-width 640px mobile breakpoint remains",
+  !css.includes("max-width: 640px"),
 );
 check(
   "Mobile CSS covers coarse-pointer landscape",
@@ -115,9 +116,10 @@ check(
   css.includes(".mobile-composer"),
 );
 check(
-  "Composer keeps safe-area padding inside the card",
-  css.includes("padding: 10px 10px max(10px, calc(var(--safe-area-bottom) - 8px))") &&
-    css.includes("margin: 8px 10px max(12px, calc(var(--safe-area-bottom) - 20px))"),
+  "Composer keeps safe-area spacing outside the card",
+  css.includes("margin: 6px 8px max(8px, var(--safe-area-bottom))") &&
+    css.includes("padding: 8px !important") &&
+    css.includes('html[data-virtual-keyboard="open"] .mobile-composer'),
 );
 check(
   ".mobile-textarea class exists",
@@ -167,6 +169,28 @@ check(
   "Mobile workspace header exposes new session",
   appShell.includes("onNewSession={(cwd) => handleNewSession") &&
     readFileSync(resolve(root, "components/MobileWorkspaceHeader.tsx"), "utf8").includes("Create new session in current project"),
+);
+const mobileWorkspaceHeader = readFileSync(resolve(root, "components/MobileWorkspaceHeader.tsx"), "utf8");
+const mobileDeviceSwitcher = readFileSync(resolve(root, "components/MobileDeviceSwitcher.tsx"), "utf8");
+const mobileHeaderActions = mobileWorkspaceHeader.slice(
+  mobileWorkspaceHeader.indexOf('<div className="mobile-header-actions">'),
+  mobileWorkspaceHeader.indexOf("</header>"),
+);
+check(
+  "Mobile device switcher is a first-level header action",
+  mobileHeaderActions.includes("MobileDeviceSwitcher") && mobileHeaderActions.includes("IconPlus"),
+);
+check(
+  "Mobile device switcher opens a direct device dialog",
+  mobileDeviceSwitcher.includes('role="dialog"') &&
+    mobileDeviceSwitcher.includes("void navigate(device)") &&
+    !mobileDeviceSwitcher.includes('role="menu"'),
+);
+check(
+  "Mobile device switcher exposes switching and error feedback",
+  mobileDeviceSwitcher.includes('aria-busy={isSwitching || undefined}') &&
+    mobileDeviceSwitcher.includes('role="alert"') &&
+    mobileDeviceSwitcher.includes("flushSync"),
 );
 check(
   "Mobile sidebar starts below the measured header",
