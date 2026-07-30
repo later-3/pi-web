@@ -263,6 +263,7 @@ curl --fail --silent http://127.0.0.1:30141/api/health
 | 服务 | `pi-web.service`、`pi-web-cloud-relay.service` + Nginx，均 enabled/active |
 | 监听 | Next `127.0.0.1:30141`；LAN Nginx `:80`；云端 relay/Nginx `33043/33044` |
 | 设备元数据 | `linux-home / Pop!_OS`，目标目录共 2 台设备 |
+| Pi/模型 | 仓库自带 Pi CLI `0.83.0`；4 个 Provider、19 个模型；默认 `volcengine-ark/deepseek-v4-flash` |
 
 该机器同时是用户工作站，需要访问其项目目录，因此没有创建隔离的 `piweb` 用户；systemd 仍启用 `NoNewPrivileges`、`PrivateTmp` 和 `UMask=0077`。通用服务器继续优先使用前文的专用用户模型。
 
@@ -278,5 +279,8 @@ curl --fail --silent http://127.0.0.1:30141/api/health
 6. Cloudflare 两个边缘 IP 的 TLS 校验与 health 均为 `200`，公网登录、Cookie、登出均通过。
 7. `systemctl restart pi-web` 与主动重启 reverse tunnel 后均自动恢复，journal 无 warning/error。
 8. Mac production/SSH relay/Nginx/Cloudflare 全链路重新安装并通过完整验证脚本；未知设备 Cookie 自动回退 `mac-main`。
+9. Mac 模型配置经 SSH 加密通道同步，DashScope 的 Mac 外部密钥引用在传输时解析为 Linux 本地受限配置；目标文件均为 `600`、无 Mac 绝对路径，转换后 `models.json` 两端 SHA-256 一致。
+10. `volcengine-ark`、`dashscope-coding`、`kimi-code`、`kimi6603` 各选择一个代表模型完成真实最小推理，上游状态均为 `200`；默认模型复测延迟 784ms。
+11. 本次配置同步重启在此前出现过 `session_start` 的进程上达到 30 秒停止超时并由 systemd 强制回收；服务随后自动恢复且数据/模型验收正常。后续需补 AgentSession drain 和活跃任务重启回归，不能把这次恢复等同于优雅停机。
 
-尚未完成的项目是手机 Safari/installed PWA 的菜单手感与运行中切换验收、远端模型凭据、SSE 实际推理、目标离线回切和双设备 Push；这些不应由服务端 HTTPS 探针冒充已经通过。
+尚未完成的项目是手机 Safari/installed PWA 的菜单手感与运行中切换验收、完整 Session/SSE 任务、目标离线回切、活跃 Session 优雅重启和双设备 Push；这些不应由单次模型或 HTTPS 探针冒充已经通过。

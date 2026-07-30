@@ -13,7 +13,7 @@
 | 上游合并提交 | `d700491` |
 | Pi SDK | `0.83.0` |
 | Node.js 下限 | `22.19.0` |
-| 当前验证 | TypeScript、ESLint、`235/235` Node tests 通过；公网同源双设备路由验收通过 |
+| 当前验证 | TypeScript、ESLint、`235/235` Node tests 通过；公网同源双设备路由与 Linux 4 Provider 实际推理验收通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
 
 ## 当前自研能力
@@ -42,7 +42,7 @@
 | 用户入口 | 唯一 PWA/手机入口 `https://pi.ai4child.asia`；设备菜单在同一 origin 内切换 Mac/Linux 后端 |
 | 物理入口 | Linux 直连 `https://linux.ai4child.asia` 与 LAN `http://192.168.1.68` 仅作部署验收/故障回退；Next.js 仅监听 loopback |
 | 设备身份 | `linux-home / Pop!_OS`，与 `mac-main / Main Mac` 互相可见 |
-| 凭据边界 | 网关成员共享应用登录账号和 Cookie 签名密钥；未复制 Provider/OAuth 凭据，Session/项目/Agent 仍各自留在本机 |
+| 凭据边界 | 网关成员共享应用登录账号和 Cookie 签名密钥；Linux 已安全同步 Mac 的模型/Provider 配置，Session、项目、Push 与 Agent 仍各自留在本机 |
 | 验证证据 | 同一登录 Cookie 下 `mac-main → linux-home → mac-main` 全部 `200`，地址不变；未知设备 Cookie 回退 Mac；两端 health 与服务重启通过 |
 
 Mac 与 Pop!_OS 均运行 Later 私有分支 `535925d` 的 `.next-mobile`，不是上游原版。云端 Nginx 根据 HttpOnly `pi_web_device` Cookie 将同一入口粘性路由到 `33041`（Mac）或 `33043`（Linux）；设备选择控制面固定到 Mac，Linux 在已加载页面期间掉线时仍可切回。若浏览器带着 Linux 偏好冷启动且 Linux 已离线，当前恢复方式是清除该站点的设备偏好；专用恢复页列为后续增强。
@@ -64,9 +64,9 @@ Private 只解决仓库访问范围，不替代秘密管理。`deploy/secrets/`�
 
 2026-07-30 的 `npm audit --omit=dev` 显示：Pi SDK 子树的 `brace-expansion@5.0.7` 命中 DoS 公告；Next `16.2.12` 内嵌的 PostCSS `8.4.31` 和 sharp `0.34.5` 也命中公告，并将 `next` 一并计为 High。npm 给出的 `--force` 方案会错误地降到 Next 9，不能采用。`brace-expansion@5.0.8` 虽已发布，但 npm 的嵌套 override 实验未改变实际依赖树，Bun 也不支持同一写法，因此没有保留“表面修复”。这些项必须等待 Pi SDK/Next 或主仓的兼容升级，并在部署前重新审计。
 
-### P2：Linux 公网 HTTPS 部署已验收，模型凭据待按需配置
+### P2：Linux 模型配置已验收，完整任务与 Push 待真机持续验证
 
-Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受限 SSH reverse tunnel、Cloudflare ingress/DNS/TLS 与服务重启已验证。Provider/OAuth 凭据尚未迁移，按需在远端受保护 Web UI 中配置；真实模型推理、SSE 与该 origin 的 Web Push 仍需随后验收。
+Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受限 SSH reverse tunnel、Cloudflare ingress/DNS/TLS 与服务重启已验证。2026-07-30 已通过 SSH 加密通道同步 Mac 的 Pi 模型设置：4 个 Provider、19 个模型、默认 `volcengine-ark/deepseek-v4-flash`，配置文件权限均为 `600`，无 Mac 绝对路径。每个 Provider 的代表模型均完成真实最小推理并返回上游 `200`；完整 Session/SSE 任务与该设备的 Web Push 仍需真机持续验收。
 
 ### P3：每日检查只自动发现，不自动合并
 
@@ -75,6 +75,10 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 ### P4：同源双设备闭环已完成，交互与运行态仍需真机持续验收
 
 [多设备 ADR](./docs/multi-device-architecture.zh-CN.md) 的同源入口、设备选择 API、HttpOnly 路由 Cookie、Nginx 白名单粘性路由、共享应用登录和两台真实设备已完成服务端验收。Safari/installed PWA 需要刷新后确认菜单交互；运行中切换、Linux 离线时回切和跨设备 Push 仍需真机验收。健康聚合、中央 Push broker 与设备授权是后续增强，不阻塞当前同终端切换。
+
+### P5：Linux 活跃 Session 后的优雅重启需要补强
+
+同步模型配置后的 `systemctl restart pi-web` 在此前出现过 `session_start` 的进程上达到 `TimeoutStopSec=30`，systemd 最终用 SIGKILL 回收 Next 子进程；新进程随即正常启动，health 与 4 个 Provider 推理均通过。当前未发现 Session 文件损坏，但后续需要为 production 增加明确的 AgentSession drain/关闭流程，并把“活跃任务重启”加入部署回归。
 
 ## 下一次更新本文件时至少记录
 

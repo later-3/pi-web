@@ -22,6 +22,7 @@
 - 同一局域网 fallback：<http://192.168.1.68>
 - 主入口设备菜单列出 `mac-main` 和 `linux-home`，选择后仍停留在原 URL。
 - 两边运行相同的 Later 私有版本，共享应用登录账号列表和 Cookie 签名密钥，因此无需第二次登录。
+- Linux 已同步 Mac 的 4 个模型 Provider、19 个模型和默认模型；4 个 Provider 的代表模型均已实际返回上游 `200`。
 - Pop!_OS 通过独立受限 reverse tunnel 接入云端 `33043`；主网关 `33042` 安全选择 `33041/33043`，`33044` 仅保留 Linux 直连排障。
 
 当前设备目录分别保存在 Mac 的 `deploy/devices.local.json` 和 Pop!_OS 的 `~/.config/pi-web/devices.json`，两者权限/提交策略不同：前者被 Git 忽略，后者只允许运行用户读取，均不包含密码或 Token。
