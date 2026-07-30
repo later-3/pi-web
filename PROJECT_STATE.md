@@ -35,7 +35,7 @@
 | 项目 | 当前事实 |
 |---|---|
 | 第二台设备 | `pop-os`，Pop!_OS 24.04 LTS，x86_64 |
-| 部署 commit | `510d6c4`（Mac 与 Pop!_OS） |
+| 部署 commit | `67effb8`（Mac 与 Pop!_OS production artifact） |
 | 运行环境 | Node `22.22.2`、npm `10.9.7`、Nginx `1.24.0` |
 | 代码与数据 | `/home/later/Code/pi-web`、`/home/later/.pi/agent` |
 | 服务 | `pi-web.service`、`pi-web-cloud-relay.service` 与 Nginx 均为 `enabled + active` |
@@ -43,9 +43,9 @@
 | 物理入口 | Linux 直连 `https://linux.ai4child.asia` 与 LAN `http://192.168.1.68` 仅作部署验收/故障回退；Next.js 仅监听 loopback |
 | 设备身份 | `linux-home / Pop!_OS`，与 `mac-main / Main Mac` 互相可见 |
 | 凭据边界 | 网关成员共享应用登录账号和 Cookie 签名密钥；Linux 已安全同步 Mac 的模型/Provider 配置，Session、项目、Push 与 Agent 仍各自留在本机 |
-| 验证证据 | 390×844 生产视口完成 `linux-home → mac-main → linux-home`，URL 始终不变、切换中旧工作区保持可见、两端设备本地工作区恢复；未知设备 Cookie 回退 Mac；两端 health、双隧道、登录和公网验证通过 |
+| 验证证据 | 390×844 生产视口完成 `linux-home → mac-main → linux-home`，最终两向约 395ms/375ms，URL 始终不变、旧工作区保持可见、设备本地工作区恢复且新增 console warning/error 为 0；两端 health、双隧道、登录和公网验证通过 |
 
-Mac 与 Pop!_OS 均运行 Later 私有分支 `510d6c4` 的 `.next-mobile`，不是上游原版。Mac build id 为 `cmtDslBfwMSS9QaQQ5V2_`，Pop!_OS build id 为 `B-pz47dr5OvRMHoUOLCus`；部署前产物分别保存在 `.next-mobile-backup-510d6c4-20260730T163200Z` 和 `.next-mobile-backup-510d6c4-20260730T163100Z`。云端 Nginx 根据 HttpOnly `pi_web_device` Cookie 将设备数据面粘性路由到 `33041`（Mac）或 `33043`（Linux），同时把页面壳、静态资源、应用认证与设备选择控制面固定到 Mac。React 工作区在不重载文档的前提下先卸载旧设备连接、提交并验证路由偏好，再恢复目标设备自己的 Session/cwd/文件页签状态；支持时用同文档 View Transition 保留真实旧画面直到目标就绪。若浏览器带着 Linux 偏好冷启动且 Linux 已离线，当前恢复方式是清除该站点的设备偏好；专用恢复页列为后续增强。
+Mac 与 Pop!_OS 均运行 Later 私有分支 `67effb8` 的 `.next-mobile` production artifact，不是上游原版。Mac build id 为 `veZwW1PTXkF_P84AUh-fD`，Pop!_OS build id 为 `tv-sNDBTT6RD2C-zbcSJZ`；上一版产物分别保存在 `.next-mobile-backup-67effb8-20260730T165900Z` 和 `.next-mobile-backup-67effb8-20260730T165500Z`。Linux 主开发工作区当时存在另一个 Session 的未提交设备访问改动，因此部署从 detached `67effb8` worktree 构建，未覆盖或提交那些文件。云端 Nginx 根据 HttpOnly `pi_web_device` Cookie 将设备数据面粘性路由到 `33041`（Mac）或 `33043`（Linux），同时把页面壳、静态资源、应用认证与设备选择控制面固定到 Mac。React 工作区在不重载文档的前提下同步提交旧工作区 unmount、提交并验证路由偏好，再恢复目标设备自己的 Session/cwd/文件页签状态；支持时用同文档 View Transition 保留真实旧画面直到目标 React 工作区挂载。若浏览器带着 Linux 偏好冷启动且 Linux 已离线，当前恢复方式是清除该站点的设备偏好；专用恢复页列为后续增强。
 
 ## 已解决的仓库风险
 

@@ -258,7 +258,7 @@ curl --fail --silent http://127.0.0.1:30141/api/health
 | 主机/架构 | `pop-os` / x86_64 / Linux 6.18.7 |
 | 资源 | 32 CPU、62 GiB 内存、227 GiB 可用磁盘 |
 | Node/npm/Git | `22.22.2` / `10.9.7` / `2.43.0` |
-| 固定源码 | `codex/later-custom@510d6c4` |
+| production artifact | `codex/later-custom@67effb8`（从 detached clean worktree 构建） |
 | 运行用户/目录 | `later` / `/home/later/Code/pi-web` |
 | 服务 | `pi-web.service`、`pi-web-cloud-relay.service` + Nginx，均 enabled/active |
 | 监听 | Next `127.0.0.1:30141`；LAN Nginx `:80`；云端 relay/Nginx `33043/33044` |

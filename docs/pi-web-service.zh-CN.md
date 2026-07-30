@@ -183,7 +183,7 @@ production 使用 `.next-mobile/`，不会与开发服务器的 `.next/` 混用�
 3. 云端隧道正常但 `手机公网检查` 失败：检查云服务器的 Nginx 和 cloudflared。
 4. `/login` 能打开但登录失败：检查 `deploy/secrets/pi-web-auth-credentials.json`，权限必须是 `600`；不要把密码打印进日志或提交 Git。
 5. Linux 在页面已打开时掉线：设备菜单仍可调用固定在 Mac 的选择接口并切回。若刷新/冷启动后直接出现 `502`，说明 Linux 服务或 `33043` 隧道不可用；当前需清除 `pi.ai4child.asia` 的站点数据以恢复默认 Mac，后续补专用恢复页。
-6. 切换过程中出现整页白屏：先确认两台设备均为 `510d6c4` 或更新版本，并检查浏览器是否命中旧 Service Worker 资源；刷新一次 PWA 后再复测。gateway 正常路径不应调用 document reload。
+6. 切换过程中出现整页白屏：先确认两台设备均为 `67effb8` 或更新版本，并检查浏览器是否命中旧 Service Worker 资源；刷新一次 PWA 后再复测。gateway 正常路径不应调用 document reload。
 
 云服务器只读检查命令：
 

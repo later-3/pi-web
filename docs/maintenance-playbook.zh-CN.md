@@ -236,10 +236,10 @@ git push -u origin codex/later-custom
 
 - 症状：设备选择已经保持同一 URL 和登录，但每次仍 reload 整个 document；手机会出现空白/连接卡片，顶部、输入区和滚动位置全部重建，频繁往返时像刷新网页。
 - 根因：把“关闭旧设备 EventSource”与“销毁整个页面”绑定。安全上只要求旧工作区 effect 在 Cookie 改变前清理，不要求页面壳、认证和静态资源重新加载。
-- 修复：云端把页面壳、`/_next/*`、应用认证和设备选择固定到 Mac 控制面；React 增加 `DeviceWorkspaceRoot` 与递增 epoch。切换事务按 `unmount 旧 AppShell → 等待清理 → POST 选择 → 目标 `/api/devices` payload/header 探针 → mount 新 AppShell → sidebar ready` 执行。失败时回滚 Cookie 与原设备快照。每台设备的 Session/cwd、文件页签和面板状态使用有界 `sessionStorage` 独立保存。
-- 视觉连续性：浏览器支持同文档 View Transition 且未开启 reduced motion 时，保留真实旧工作区快照直到目标 ready，再原位替换；不构造假 Session、假骨架或跨设备复用 React 状态。
+- 修复：云端把页面壳、`/_next/*`、应用认证和设备选择固定到 Mac 控制面；React 增加 `DeviceWorkspaceRoot` 与递增 epoch。切换事务按 `flushSync unmount 旧 AppShell → POST 选择 → 目标 /api/devices payload/header 探针 → flushSync mount 新 AppShell → 独立 sidebar ready gate` 执行。失败时回滚 Cookie 与原设备快照。每台设备的 Session/cwd、文件页签和面板状态使用有界 `sessionStorage` 独立保存。
+- 视觉连续性：浏览器支持同文档 View Transition 且未开启 reduced motion 时，保留真实旧工作区快照直到目标 React tree 挂载，再原位替换；不构造假 Session、假骨架或跨设备复用 React 状态。View Transition 的 DOM update callback 内不得等待 `requestAnimationFrame`：浏览器在回调完成前暂停渲染，这会形成帧等待死锁并记录 transition timeout。
 - 自动化验证：切换专项 13 项覆盖安全清理顺序、同文档 epoch 替换、目标错路由拒绝、超时、Cookie 回滚、工作区清洗/上限与 reduced-motion 分支；全量 `247/247` tests、TypeScript 和 ESLint 通过。
-- 生产验证：`linux-home → mac-main → linux-home` 两向切换分别在约 489ms/934ms 的点击观察窗口保持同一 URL，过渡截图始终显示旧真实工作区而非空白；目标侧分别恢复 `/Users/xulater/Code/Chat` 与 `/home/later/Code`。Mac/Pop!_OS 均部署 `510d6c4`，公网登录、Nginx、双隧道和 health 全部通过。
+- 生产验证：最终 `linux-home → mac-main → linux-home` 两向切换约 395ms/375ms，保持同一 URL，目标侧分别恢复 `/Users/xulater/Code/Chat` 与 `/home/later/Code`；从刷新最终 build 到两次切换后的新增页面 warning/error 为 0。Mac/Pop!_OS 均部署 `67effb8` production artifact，公网登录、Nginx、双隧道和 health 全部通过。
 - 防复发：gateway 模式禁止 `window.location.assign/reload`；Cookie 修改前必须证明旧 workspace 已 unmount；目标设备必须通过 id 双重校验；失败必须可回滚。direct 模式仍可跨 origin 导航，但不能用于正式手机入口。
 
 ## 4. 新案例模板

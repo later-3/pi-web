@@ -144,7 +144,7 @@ React DeviceWorkspaceRoot
 5. 设备物理 URL 不返回给 gateway 模式 UI，不参与正常导航。
 6. 目标不可达、响应错路由或超时会把设备偏好回滚到原设备并恢复其工作区快照；不能让失败选择把页面留在半切换状态。
 7. 每台设备最后的 Session/cwd、文件页签与面板状态保存为有界、可校验的 `sessionStorage` 快照；跨设备不共享运行中 React 状态。
-8. 支持同文档 View Transition 且用户未开启 reduced motion 时，异步切换期间保留真实旧工作区快照，目标侧栏就绪后再原位替换；不支持时使用明确的连接状态，不伪造内容骨架。
+8. 支持同文档 View Transition 且用户未开启 reduced motion 时，异步切换期间保留真实旧工作区快照，目标 React 工作区同步挂载后再原位替换；侧栏数据 ready 继续由独立 loading gate 管理。不支持时使用明确的连接状态，不伪造内容骨架。
 
 后续增强另行设计：设备 registry/heartbeat/health cache、中央 Push broker、动态授权与网关高可用。若未来采用 Cloudflare Access，origin 必须验证 `Cf-Access-Jwt-Assertion`，不能仅信任 Cookie。[Cloudflare JWT validation](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)
 
@@ -179,7 +179,7 @@ deploy/devices.example.json   非敏感示例
 | 设备切换 | POST + 目标探针各自有界；目标侧栏 ready 最多等待 6 秒 | 超时/错路由回滚原设备并显示错误；不逐台预连 |
 | 当前设备 | 配置不存在时自动注入本机 | 永远保留可用当前设备 |
 | SSE | workspace unmount 触发已有 effect cleanup | 原设备任务继续；旧客户端连接在 Cookie 改变前关闭 |
-| 视觉过渡 | 支持时保留真实旧工作区直到新工作区 ready | reduced motion 或 API 不支持时退回明确连接状态 |
+| 视觉过渡 | 支持时保留真实旧工作区直到目标 React tree 挂载；回调内禁止等待 animation frame | reduced motion 或 API 不支持时退回明确连接状态 |
 | 工作区记忆 | 每设备一份有界 `sessionStorage` 快照 | 损坏/未知字段丢弃，回退空工作区 |
 
 未来健康状态由网关 heartbeat 聚合，建议 15–30 秒 TTL、带 jitter 的指数退避和 per-device circuit breaker；不能让每个手机页面逐台探测。
