@@ -214,6 +214,13 @@ git push -u origin codex/later-custom
 - 修复：用 `ps`、目录大小、文件数和最新 npm log 判断是否前进；确认 npm 进程消失、`node_modules/.bin/next` 存在、lockfile 未变且日志 exit 0 后，才关闭空闲 SSH 连接并进入构建。
 - 防复发：不能因为 30 秒无输出就并发重跑 `npm ci`；冷缓存部署给足时间，构建与安装保持串行，并保留 `npm ci --no-audit --no-fund` 的确定性参数。
 
+### 3.15 Cloudflare DNS 正常但新子域名 TLS handshake failure
+
+- 症状：Tunnel ingress、Nginx、应用 health 和权威 DNS 都正常，新域名经过 Cloudflare 边缘却在 TLS 握手阶段失败。
+- 根因证据：最初使用 `linux.pi.ai4child.asia`，这是相对 `ai4child.asia` 的两层子域名；当前通用证书覆盖 apex 与单层 wildcard，但不覆盖该嵌套名称。两个边缘 IP 均复现握手失败。
+- 修复：改用单层 `linux.ai4child.asia`，重新配置 ingress、Host allow-list 和设备目录；两个 Cloudflare 边缘 IP 随即返回 health `200` 且 TLS 校验为 0。
+- 防复发：设计设备 hostname 时先核对证书 SAN/层级，不要只验证 DNS；上线门槛必须同时包含权威 DNS、两边缘 TLS、应用登录和 `/api/devices`。
+
 ## 4. 新案例模板
 
 ```markdown

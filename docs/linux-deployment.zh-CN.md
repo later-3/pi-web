@@ -257,13 +257,13 @@ curl --fail --silent http://127.0.0.1:30141/api/health
 | Node/npm/Git | `22.22.2` / `10.9.7` / `2.43.0` |
 | 固定源码 | `codex/later-custom@2679fd4` |
 | 运行用户/目录 | `later` / `/home/later/Code/pi-web` |
-| 服务 | system `pi-web.service` + Nginx，均 enabled/active |
-| 监听 | Next `127.0.0.1:30141`；Nginx LAN `:80` |
+| 服务 | `pi-web.service`、`pi-web-cloud-relay.service` + Nginx，均 enabled/active |
+| 监听 | Next `127.0.0.1:30141`；LAN Nginx `:80`；云端 relay/Nginx `33043/33044` |
 | 设备元数据 | `linux-home / Pop!_OS`，目标目录共 2 台设备 |
 
 该机器同时是用户工作站，需要访问其项目目录，因此没有创建隔离的 `piweb` 用户；systemd 仍启用 `NoNewPrivileges`、`PrivateTmp` 和 `UMask=0077`。通用服务器继续优先使用前文的专用用户模型。
 
-本次 LAN 入口使用 `http://192.168.1.68`，只用于同一可信局域网内打通功能。HTTP 不满足 installed PWA 与 Web Push 的安全上下文要求，也不应暴露到公网；下一阶段应为该设备增加独立可信 HTTPS origin 或接入单 origin 网关。
+正式入口是 `https://linux.ai4child.asia`：Pop!_OS 的受限 systemd SSH tunnel 把本机 `30141` 转到云服务器 loopback `33043`，云端 Nginx `33044` 负责 Host、SSE 与超时参数，现有 Cloudflare Tunnel 提供 DNS、TLS 和公网边缘。云端使用无 shell 的专用 `piweb-linux-relay` 用户，Key 仅允许监听 `127.0.0.1:33043`。`http://192.168.1.68` 只保留为可信 LAN fallback，不再写入手机设备目录。
 
 实机完成了以下自动验收：
 
@@ -271,8 +271,9 @@ curl --fail --silent http://127.0.0.1:30141/api/health
 2. loopback 与 LAN health 均返回 `status=ok`。
 3. 未登录根路径重定向 `/login`，受保护 API 返回 `401`。
 4. 登录、Cookie 会话、登出均返回 `200`。
-5. Pop!_OS 返回 `current=linux-home`，Mac 返回 `current=mac-main`，两边都包含 2 台设备且无 diagnostic。
-6. `systemctl restart pi-web` 后第 2 次探测恢复，journal 无 warning/error。
-7. Mac production/SSH relay/Nginx/Cloudflare 全链路重新安装并通过完整验证脚本。
+5. Pop!_OS 返回 `current=linux-home`，Mac 返回 `current=mac-main`，两边都包含 2 个 HTTPS URL 且无 diagnostic。
+6. Cloudflare 两个边缘 IP 的 TLS 校验与 health 均为 `200`，公网登录、Cookie、登出均通过。
+7. `systemctl restart pi-web` 与主动重启 reverse tunnel 后均自动恢复，journal 无 warning/error。
+8. Mac production/SSH relay/Nginx/Cloudflare 全链路重新安装并通过完整验证脚本。
 
-尚未完成的项目是手机 Safari/installed PWA 真机切换、远端模型凭据、SSE 实际推理和双设备 Push；这些不应由 HTTP LAN 探针冒充已经通过。
+尚未完成的项目是手机 Safari/installed PWA 真机切换、远端模型凭据、SSE 实际推理和双设备 Push；这些不应由服务端 HTTPS 探针冒充已经通过。

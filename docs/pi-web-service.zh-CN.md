@@ -17,10 +17,12 @@ Pi Web 的电脑端和手机端共用 Mac 上的同一个 production 进程。�
 
 2026-07-30 已部署 `linux-home / Pop!_OS`：
 
-- 同一局域网入口：<http://192.168.1.68>
+- 公网 HTTPS 入口：<https://linux.ai4child.asia>
+- 同一局域网 fallback：<http://192.168.1.68>
 - Mac 与 Pop!_OS 的设备菜单都能列出 `mac-main` 和 `linux-home`。
 - 两边使用相同的应用登录账号列表，但使用不同的 Cookie 签名密钥。
-- Pop!_OS 当前入口是过渡性的 LAN HTTP，不支持 installed PWA/Web Push；公网与可信 HTTPS 仍由 Mac 的 <https://pi.ai4child.asia> 提供。
+- 两个设备是不同 origin，登录 Cookie 不共享；第一次切换到 Pop!_OS 时可能需要登录一次。
+- Pop!_OS 通过独立受限 reverse tunnel 接入云端 `33043/33044`，不会与 Mac 的 `33041/33042` 混流。
 
 当前设备目录分别保存在 Mac 的 `deploy/devices.local.json` 和 Pop!_OS 的 `~/.config/pi-web/devices.json`，两者权限/提交策略不同：前者被 Git 忽略，后者只允许运行用户读取，均不包含密码或 Token。
 
