@@ -19,7 +19,7 @@
 | Provider Request 查看 | 把终端中的密集 JSON 变成可搜索、可放大的结构化视图 | `ProviderRequests.tsx`、`app/api/provider-requests/route.ts` | 小窗、全屏、长 JSON、错误响应 |
 | 运行状态恢复 | 后台、断网或漏 SSE 后不会永久显示“运行中” | `hooks/useAgentSession.ts`、`lib/rpc-manager.ts` | SSE/reconciliation 测试 |
 | 运维脚本 | 安装、启动、停止、日志和全链路检查可重复执行 | `scripts/manage-pi-web.sh`、`scripts/verify-mobile-relay.sh` | `status` 与健康检查均为 0 |
-| 同终端多设备切换 | 在一个 origin、一个登录和一个 PWA 内切换执行设备，同时保留本地 Session 边界 | `lib/device-directory*`、`DeviceSwitcher.tsx`、`GET/POST /api/devices*` | 目录/API/组件测试 + 双设备网关验收 |
+| 同终端多设备切换 | 在一个 origin、一个登录和一个 PWA 内原位切换执行设备，不整页刷新，同时保留设备本地 Session 边界和工作区记忆 | `DeviceWorkspaceRoot.tsx`、`useDeviceWorkspace.ts`、`lib/device-workspace.ts`、`GET/POST /api/devices*` | 状态机/回滚/快照测试 + 双向生产视口验收 |
 
 ## 配置矩阵
 
@@ -73,6 +73,8 @@ Push 内容只使用有界预览和 Session 深链，不发送完整对话。HTT
 8. 移动端高度在键盘关闭时由 CSS 控制，只有可编辑控件聚焦且确认为软键盘时才采用 Visual Viewport。
 9. 同 origin 网关只切换后端路由，不迁移运行中的 Agent；`pi_web_device` 只能由受保护 API 写入，Nginx 只接受已知 id，控制面固定到主设备以保证故障回切。
 10. 同一网关内的设备共享应用账号和 Cookie 签名密钥，但 Session、Provider/OAuth、项目文件、Push store 与 Agent 进程仍留在各设备。
+11. gateway 模式切换不得调用 `window.location.reload/assign`；旧工作区必须先 unmount 完成连接清理，再修改路由 Cookie。目标探针失败要回滚原设备，切换成功只替换带 epoch key 的 React 工作区。
+12. 每台设备的最后 Session/cwd、文件页签和右侧面板只存于当前浏览器的有界 `sessionStorage` 快照；解析时必须丢弃损坏或越界数据，不能把设备状态混写到另一台设备。
 
 ## 文档导航
 
@@ -82,3 +84,4 @@ Push 内容只使用有界预览和 Session 深链，不发送完整对话。HTT
 - PWA 安装：[PWA 指南](./PWA.md)
 - Session/模型使用：[Pi Agent 手册](./pi-agent-model-usage.zh-CN.md) 与 [Codex 手册](./codex-session-model-usage.zh-CN.md)
 - 多设备：[多设备接入架构 ADR](./multi-device-architecture.zh-CN.md)
+- 手机交互待审核方案：[移动端 UX 审计](./mobile-ux-audit-2026-07-30.zh-CN.md)

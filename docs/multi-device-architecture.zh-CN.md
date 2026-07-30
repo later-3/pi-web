@@ -24,7 +24,8 @@
 3. UI 在同一个 origin 内显示并切换执行设备，用户不离开当前 PWA/界面，也不再次登录。
 4. 配置错误只关闭多设备入口，不影响当前设备的 Session/Chat。
 5. 核心解析、文件加载、UI 和 API 分层，具备独立测试。
-6. 页面、API、SSE 和静态资源在一次页面生命周期内粘性到同一设备。
+6. 设备数据 API、SSE 和文件请求在一个工作区 epoch 内粘性到同一设备；页面壳、静态资源、认证和选择控制面固定到主设备。
+7. gateway 模式在同一 document 内替换 React 工作区，不以整页刷新伪装成“统一界面”。
 
 ### 当前不做
 
@@ -65,7 +66,7 @@ Nginx 默认启用 proxy buffering，SSE 代理必须关闭 buffering 或正确�
 
 Cloudflare 文档说明 tunnel connector 停止时长连接会中断；官方排障也指出 `text/event-stream` 会影响 buffering 行为。[Cloudflare tunnel configuration](https://developers.cloudflare.com/tunnel/advanced/local-management/configuration-file/)、[Cloudflare common errors](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/troubleshoot-tunnels/common-errors/)
 
-结论：一次页面生命周期内的 HTML、API、SSE 必须路由到同一设备。设备切换必须整页 reload，并接受旧 SSE 断开；旧设备上的 Agent 继续运行，通过现有 reconciliation/Push 收口。
+结论：一次 React 工作区生命周期内的设备 API、SSE 与文件请求必须路由到同一设备。切换时先 unmount 旧工作区，让 React effect cleanup 关闭 EventSource/请求，再改变粘性路由；无需 reload 整个 document。旧设备上的 Agent 不被 abort，继续通过 reconciliation/Push 收口。
 
 ## 4. 方案比较
 
@@ -123,8 +124,13 @@ Nginx 白名单粘性路由
        ├─ mac-main   ─▶ tunnel A ─▶ Mac Pi Web
        └─ linux-home ─▶ tunnel B ─▶ Linux Pi Web
 
+页面壳 / `_next/*` / 应用认证 ──────────▶ 固定 Mac 控制面
+
 POST /api/devices/select ───────────────▶ 固定 Mac 控制面
-       └─ 校验 Origin/JSON/known id，写 HttpOnly Cookie，刷新同一根 URL
+       └─ 校验 Origin/JSON/known id，写 HttpOnly Cookie
+
+React DeviceWorkspaceRoot
+       └─ unmount 旧工作区 → 选择设备 → 探针校验 → mount 目标工作区
 ```
 
 当前网关只保存非敏感设备偏好并执行路由。两台 Pi Web 运行兼容 build，配置相同的 `PI_WEB_DEVICE_GATEWAY_URL`，通过受保护渠道共享应用账号文件和 Cookie 签名密钥；Session、项目文件、Provider Key、Push store 和 Agent 运行状态继续留在各设备上。
@@ -133,9 +139,12 @@ POST /api/devices/select ───────────────▶ 固定
 
 1. `pi_web_device` 不承载身份或秘密，只接受 Nginx 静态白名单中的 id；未知值默认到主设备。
 2. `POST /api/devices/select` 固定路由到主设备；目标在已加载页面期间离线时仍可回切。若带着离线目标偏好冷启动，当前需清除站点设备偏好，专用无依赖恢复页是后续增强。
-3. 切换完成后导航到同一 gateway 根 URL，整页 reload 关闭旧 EventSource；旧设备 Agent 不被 abort。
+3. gateway 模式不导航、不 reload：`DeviceWorkspaceRoot` 先进入 switching phase 并 unmount 旧 `AppShell`，等待 effect cleanup 后再调用选择 API；目标 `/api/devices` 必须同时通过 payload 与 `X-Pi-Web-Device` 校验，随后用递增 epoch key 挂载新工作区。旧设备 Agent 不被 abort。
 4. 应用登录 Cookie 是同一 origin 的 host-only Cookie；网关成员用同一签名密钥验证，不设置父域 Cookie。
 5. 设备物理 URL 不返回给 gateway 模式 UI，不参与正常导航。
+6. 目标不可达、响应错路由或超时会把设备偏好回滚到原设备并恢复其工作区快照；不能让失败选择把页面留在半切换状态。
+7. 每台设备最后的 Session/cwd、文件页签与面板状态保存为有界、可校验的 `sessionStorage` 快照；跨设备不共享运行中 React 状态。
+8. 支持同文档 View Transition 且用户未开启 reduced motion 时，异步切换期间保留真实旧工作区快照，目标侧栏就绪后再原位替换；不支持时使用明确的连接状态，不伪造内容骨架。
 
 后续增强另行设计：设备 registry/heartbeat/health cache、中央 Push broker、动态授权与网关高可用。若未来采用 Cloudflare Access，origin 必须验证 `Cf-Access-Jwt-Assertion`，不能仅信任 Cookie。[Cloudflare JWT validation](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)
 
@@ -147,8 +156,11 @@ lib/device-directory.ts       环境变量、受限文件读取、mtime cache
 app/api/devices/route.ts      薄 HTTP adapter；no-store；不暴露文件路径
 app/api/devices/select/route.ts 受保护的设备选择控制面与 Cookie 写入
 lib/device-selection*.ts      Cookie/请求边界与带超时客户端
+lib/device-workspace.ts       每设备有界工作区快照、导航恢复与清洗
 hooks/useDeviceDirectory.ts   一次性加载、AbortController 与超时
+hooks/useDeviceWorkspace.ts   切换事务、回滚、ready gate 与 View Transition
 components/DeviceSwitcher.tsx 独立交互组件；不承载配置解析
+components/DeviceWorkspaceRoot.tsx 带 epoch key 的工作区边界与状态展示
 DeviceSwitcher.module.css     响应式样式；不向 globals.css 堆规则
 deploy/nginx/pi-web.conf      已知设备 id 到 tunnel 的静态映射
 deploy/devices.example.json   非敏感示例
@@ -164,9 +176,11 @@ deploy/devices.example.json   非敏感示例
 | `/api/devices` | 页面挂载加载一次，不轮询 | 3 秒超时后隐藏切换器，不影响 Chat |
 | 文件 IO | path + mtime + size cache | 文件变化后下次请求重新解析 |
 | 远端健康 | 当前不主动逐台探测 | 避免首屏串行等待和 N×M 探测风暴 |
-| 设备切换 | POST 最多等待 5 秒，成功后同 origin reload | 超时留在当前页并显示错误；不预连目标设备 |
+| 设备切换 | POST + 目标探针各自有界；目标侧栏 ready 最多等待 6 秒 | 超时/错路由回滚原设备并显示错误；不逐台预连 |
 | 当前设备 | 配置不存在时自动注入本机 | 永远保留可用当前设备 |
-| SSE | 切换即整页 reload | 原设备任务继续；客户端连接按现有机制终止 |
+| SSE | workspace unmount 触发已有 effect cleanup | 原设备任务继续；旧客户端连接在 Cookie 改变前关闭 |
+| 视觉过渡 | 支持时保留真实旧工作区直到新工作区 ready | reduced motion 或 API 不支持时退回明确连接状态 |
+| 工作区记忆 | 每设备一份有界 `sessionStorage` 快照 | 损坏/未知字段丢弃，回退空工作区 |
 
 未来健康状态由网关 heartbeat 聚合，建议 15–30 秒 TTL、带 jitter 的指数退避和 per-device circuit breaker；不能让每个手机页面逐台探测。
 
@@ -194,11 +208,15 @@ deploy/devices.example.json   非敏感示例
 - 组件单设备时隐藏、多设备时显示、当前项不可选、中文/英文文本；
 - 目录 fetch abort/timeout、选择请求 5 秒 timeout 和卸载后不 setState；
 - Nginx 已知设备映射、未知值回退和固定控制面；
+- 旧 workspace 在修改 Cookie 前 unmount，gateway 模式只替换 React epoch、不调用 document navigation；
+- 目标 payload/header 双重校验、失败回滚原设备、每设备工作区快照清洗与上限；
+- View Transition 支持分支与 reduced-motion 回退；
 - TypeScript、ESLint 与全量 Node tests。
 
 ### 手工/真机
 
-- Safari tab 与 installed PWA 各切换一次，确认 URL 与登录态不变；
+- Safari tab 与 installed PWA 各连续往返切换，确认 URL、登录态和 document 不变，过程中不出现空白页；
+- 切到每台设备后恢复其最后 Session/cwd/文件页签，不串用另一设备路径；
 - 目标设备离线时的错误展示和回切主设备；
 - 原设备 Agent 正在 streaming 时切换，确认任务未被错误 abort；
 - 切回后 reconciliation 恢复正确状态；

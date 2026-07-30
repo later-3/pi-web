@@ -258,7 +258,7 @@ curl --fail --silent http://127.0.0.1:30141/api/health
 | 主机/架构 | `pop-os` / x86_64 / Linux 6.18.7 |
 | 资源 | 32 CPU、62 GiB 内存、227 GiB 可用磁盘 |
 | Node/npm/Git | `22.22.2` / `10.9.7` / `2.43.0` |
-| 固定源码 | `codex/later-custom@535925d` |
+| 固定源码 | `codex/later-custom@510d6c4` |
 | 运行用户/目录 | `later` / `/home/later/Code/pi-web` |
 | 服务 | `pi-web.service`、`pi-web-cloud-relay.service` + Nginx，均 enabled/active |
 | 监听 | Next `127.0.0.1:30141`；LAN Nginx `:80`；云端 relay/Nginx `33043/33044` |
@@ -282,5 +282,7 @@ curl --fail --silent http://127.0.0.1:30141/api/health
 9. Mac 模型配置经 SSH 加密通道同步，DashScope 的 Mac 外部密钥引用在传输时解析为 Linux 本地受限配置；目标文件均为 `600`、无 Mac 绝对路径，转换后 `models.json` 两端 SHA-256 一致。
 10. `volcengine-ark`、`dashscope-coding`、`kimi-code`、`kimi6603` 各选择一个代表模型完成真实最小推理，上游状态均为 `200`；默认模型复测延迟 784ms。
 11. 本次配置同步重启在此前出现过 `session_start` 的进程上达到 30 秒停止超时并由 systemd 强制回收；服务随后自动恢复且数据/模型验收正常。后续需补 AgentSession drain 和活跃任务重启回归，不能把这次恢复等同于优雅停机。
+12. 同一 390×844 生产浏览器完成 `linux-home → mac-main → linux-home` 无 document reload 双向切换：URL 不变，过渡期保留旧真实工作区，目标侧分别恢复设备本地 cwd；切换专项与全量 `247/247` tests 通过。
+13. 部署 `510d6c4` 前确认 Linux 运行 Session 为 0，但 `systemctl stop pi-web` 仍达到 30 秒超时；新服务、build、health 与 relay 均正常。这把排查范围扩大到长连接/信号转发，空闲与活跃重启都必须加入后续 drain 回归。
 
 尚未完成的项目是手机 Safari/installed PWA 的菜单手感与运行中切换验收、完整 Session/SSE 任务、目标离线回切、活跃 Session 优雅重启和双设备 Push；这些不应由单次模型或 HTTPS 探针冒充已经通过。

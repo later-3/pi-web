@@ -227,10 +227,20 @@ git push -u origin codex/later-custom
 
 - 症状：手机从设备菜单跳到另一个子域名，地址、登录、PWA scope 和页面生命周期一起改变，用户感知为两套割裂的管理界面。
 - 根因：一期把 `window.location.assign(device.url)` 当成最终交互；不同 origin 天然拥有不同 Cookie、Service Worker 和 installed PWA 边界。
-- 修复：手机只访问一个网关 origin；`POST /api/devices/select` 写入 HttpOnly `pi_web_device`，随后整页刷新同一 URL。Nginx 只把已知 id 映射到设备 tunnel，HTML、API、SSE 和静态资源在一次页面生命周期内粘到同一后端。网关成员共享应用账号与会话签名密钥，控制接口固定到主设备；离线目标冷启动的当前恢复方式是清除站点设备偏好。
-- 自动化验证：覆盖目录 gateway 模式、选择 API 的 Origin/JSON/体积/id 校验、Cookie 属性、客户端超时和 Nginx 映射；全量 `235/235` tests 通过。
+- 修复：手机只访问一个网关 origin；`POST /api/devices/select` 写入 HttpOnly `pi_web_device`。Nginx 只把已知 id 映射到设备 tunnel，网关成员共享应用账号与会话签名密钥，控制接口固定到主设备；离线目标冷启动的当前恢复方式是清除站点设备偏好。最初仍以同 URL 整页刷新完成切换，随后由 3.17 继续消除页面生命周期断裂。
+- 自动化验证：覆盖目录 gateway 模式、选择 API 的 Origin/JSON/体积/id 校验、Cookie 属性、客户端超时和 Nginx 映射。
 - 部署验证：同一签名登录 Cookie 下完成 `mac-main → linux-home → mac-main`，所有请求均为 `200`、URL 不变；未知 Cookie 回退 Mac。
 - 防复发：设备 URL 只能作为隧道/故障回退 adapter，不再作为正常 UI 导航；新增设备必须运行兼容 build、共享应用认证材料，并保留主控制面回切路径。Session、Provider Key 和项目文件禁止因“统一界面”而集中复制。后续恢复页必须是主设备固定路由且不依赖所选目标的静态资源。
+
+### 3.17 同源切换仍有“重新请求网页”的感觉
+
+- 症状：设备选择已经保持同一 URL 和登录，但每次仍 reload 整个 document；手机会出现空白/连接卡片，顶部、输入区和滚动位置全部重建，频繁往返时像刷新网页。
+- 根因：把“关闭旧设备 EventSource”与“销毁整个页面”绑定。安全上只要求旧工作区 effect 在 Cookie 改变前清理，不要求页面壳、认证和静态资源重新加载。
+- 修复：云端把页面壳、`/_next/*`、应用认证和设备选择固定到 Mac 控制面；React 增加 `DeviceWorkspaceRoot` 与递增 epoch。切换事务按 `unmount 旧 AppShell → 等待清理 → POST 选择 → 目标 `/api/devices` payload/header 探针 → mount 新 AppShell → sidebar ready` 执行。失败时回滚 Cookie 与原设备快照。每台设备的 Session/cwd、文件页签和面板状态使用有界 `sessionStorage` 独立保存。
+- 视觉连续性：浏览器支持同文档 View Transition 且未开启 reduced motion 时，保留真实旧工作区快照直到目标 ready，再原位替换；不构造假 Session、假骨架或跨设备复用 React 状态。
+- 自动化验证：切换专项 13 项覆盖安全清理顺序、同文档 epoch 替换、目标错路由拒绝、超时、Cookie 回滚、工作区清洗/上限与 reduced-motion 分支；全量 `247/247` tests、TypeScript 和 ESLint 通过。
+- 生产验证：`linux-home → mac-main → linux-home` 两向切换分别在约 489ms/934ms 的点击观察窗口保持同一 URL，过渡截图始终显示旧真实工作区而非空白；目标侧分别恢复 `/Users/xulater/Code/Chat` 与 `/home/later/Code`。Mac/Pop!_OS 均部署 `510d6c4`，公网登录、Nginx、双隧道和 health 全部通过。
+- 防复发：gateway 模式禁止 `window.location.assign/reload`；Cookie 修改前必须证明旧 workspace 已 unmount；目标设备必须通过 id 双重校验；失败必须可回滚。direct 模式仍可跨 origin 导航，但不能用于正式手机入口。
 
 ## 4. 新案例模板
 

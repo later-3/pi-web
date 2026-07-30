@@ -2,7 +2,7 @@
 
 ## 快速结论
 
-手机只使用一个入口、一个登录和一个 Pi Web 界面：`https://pi.ai4child.asia`。默认执行设备是 Mac；在设备菜单选择 Pop!_OS 后，页面、API、SSE 和静态资源会在同一 origin 下整体切到 Linux，不会打开另一套管理界面。
+手机只使用一个入口、一个登录和一个 Pi Web 界面：`https://pi.ai4child.asia`。默认执行设备是 Mac；在设备菜单选择 Pop!_OS 后，React 工作区会在同一 document/origin 内原位切到 Linux，不重载整页，也不会打开另一套管理界面。切换期间先关闭旧设备的页面连接，真实旧画面保留到目标工作区就绪；旧设备上已经运行的 Agent 不会被中止。
 
 ```bash
 ./scripts/manage-pi-web.sh start
@@ -21,6 +21,7 @@
 - Linux 物理直连：<https://linux.ai4child.asia>，只用于部署验收和故障回退
 - 同一局域网 fallback：<http://192.168.1.68>
 - 主入口设备菜单列出 `mac-main` 和 `linux-home`，选择后仍停留在原 URL。
+- gateway 模式切换不再刷新 document；每台设备分别恢复自己最后的 Session/cwd 与文件页签。
 - 两边运行相同的 Later 私有版本，共享应用登录账号列表和 Cookie 签名密钥，因此无需第二次登录。
 - Linux 已同步 Mac 的 4 个模型 Provider、19 个模型和默认模型；4 个 Provider 的代表模型均已实际返回上游 `200`。
 - Pop!_OS 通过独立受限 reverse tunnel 接入云端 `33043`；主网关 `33042` 安全选择 `33041/33043`，`33044` 仅保留 Linux 直连排障。
@@ -35,8 +36,9 @@
                                   Pi Web production
                                   127.0.0.1:30141
                                           ▲
-手机 ─▶ Cloudflare ─▶ 云端 Nginx :33042 ─┬─ Cookie=mac-main   ─▶ :33041 ─▶ Mac
-                                           └─ Cookie=linux-home ─▶ :33043 ─▶ Pop!_OS
+手机 ─▶ Cloudflare ─▶ 云端 Nginx :33042 ─┬─ 页面壳/静态/认证/选择 ─▶ :33041 ─▶ Mac
+                                           ├─ Cookie=mac-main 数据 ─▶ :33041 ─▶ Mac
+                                           └─ Cookie=linux-home 数据 ─▶ :33043 ─▶ Pop!_OS
 ```
 
 Mac 上由 2 个 LaunchAgent 常驻运行：
@@ -46,7 +48,7 @@ Mac 上由 2 个 LaunchAgent 常驻运行：
 
 云服务器上还有 2 个 systemd 服务：
 
-1. `nginx`：在 `127.0.0.1:33042` 接收 Cloudflare 回源，并按白名单设备 Cookie 粘性转给 `33041` 或 `33043`；未知值回退 Mac，`/api/devices/select` 固定转给 Mac 控制面。
+1. `nginx`：在 `127.0.0.1:33042` 接收 Cloudflare 回源；页面壳、`/_next/*`、应用认证和 `/api/devices/select` 固定转给 Mac 控制面，设备数据 API/SSE 按白名单 Cookie 粘性转给 `33041` 或 `33043`；未知值回退 Mac。
 2. `cloudflared`：承接 `pi.ai4child.asia` 的 HTTPS 流量并转给 Nginx。
 
 认证由 Pi Web 的 `/login` 和签名 HttpOnly Cookie 完成；设备偏好使用另一枚不含秘密的 HttpOnly Cookie。Nginx 不应启用浏览器原生 Basic Auth。
@@ -181,6 +183,7 @@ production 使用 `.next-mobile/`，不会与开发服务器的 `.next/` 混用�
 3. 云端隧道正常但 `手机公网检查` 失败：检查云服务器的 Nginx 和 cloudflared。
 4. `/login` 能打开但登录失败：检查 `deploy/secrets/pi-web-auth-credentials.json`，权限必须是 `600`；不要把密码打印进日志或提交 Git。
 5. Linux 在页面已打开时掉线：设备菜单仍可调用固定在 Mac 的选择接口并切回。若刷新/冷启动后直接出现 `502`，说明 Linux 服务或 `33043` 隧道不可用；当前需清除 `pi.ai4child.asia` 的站点数据以恢复默认 Mac，后续补专用恢复页。
+6. 切换过程中出现整页白屏：先确认两台设备均为 `510d6c4` 或更新版本，并检查浏览器是否命中旧 Service Worker 资源；刷新一次 PWA 后再复测。gateway 正常路径不应调用 document reload。
 
 云服务器只读检查命令：
 

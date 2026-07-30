@@ -13,7 +13,7 @@
 | 上游合并提交 | `d700491` |
 | Pi SDK | `0.83.0` |
 | Node.js 下限 | `22.19.0` |
-| 当前验证 | TypeScript、ESLint、`235/235` Node tests 通过；公网同源双设备路由与 Linux 4 Provider 实际推理验收通过 |
+| 当前验证 | TypeScript、ESLint、`247/247` Node tests 通过；公网同源无刷新双设备切换与 Linux 4 Provider 实际推理验收通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
 
 ## 当前自研能力
@@ -26,7 +26,7 @@
 6. Extension 全局/Session 开关与 Provider Request 结构化查看。
 7. Chat 执行转录只读浏览、受保护的 Session/文件访问与运行状态恢复。
 8. production/relay 安装、启停、日志和端到端验证脚本。
-9. 多设备身份、受限 JSON 目录、同源粘性网关，以及桌面/手机在一个界面内切换执行设备。
+9. 多设备身份、受限 JSON 目录、同源粘性网关，以及桌面/手机在一个 React 工作区内无整页刷新地切换执行设备。
 
 完整入口见 [自研功能与配置清单](./docs/later-customizations.zh-CN.md)。
 
@@ -35,7 +35,7 @@
 | 项目 | 当前事实 |
 |---|---|
 | 第二台设备 | `pop-os`，Pop!_OS 24.04 LTS，x86_64 |
-| 部署 commit | `535925de4b32ef2374076750878a8757c5a2ad37` |
+| 部署 commit | `510d6c4`（Mac 与 Pop!_OS） |
 | 运行环境 | Node `22.22.2`、npm `10.9.7`、Nginx `1.24.0` |
 | 代码与数据 | `/home/later/Code/pi-web`、`/home/later/.pi/agent` |
 | 服务 | `pi-web.service`、`pi-web-cloud-relay.service` 与 Nginx 均为 `enabled + active` |
@@ -43,9 +43,9 @@
 | 物理入口 | Linux 直连 `https://linux.ai4child.asia` 与 LAN `http://192.168.1.68` 仅作部署验收/故障回退；Next.js 仅监听 loopback |
 | 设备身份 | `linux-home / Pop!_OS`，与 `mac-main / Main Mac` 互相可见 |
 | 凭据边界 | 网关成员共享应用登录账号和 Cookie 签名密钥；Linux 已安全同步 Mac 的模型/Provider 配置，Session、项目、Push 与 Agent 仍各自留在本机 |
-| 验证证据 | 同一登录 Cookie 下 `mac-main → linux-home → mac-main` 全部 `200`，地址不变；未知设备 Cookie 回退 Mac；两端 health 与服务重启通过 |
+| 验证证据 | 390×844 生产视口完成 `linux-home → mac-main → linux-home`，URL 始终不变、切换中旧工作区保持可见、两端设备本地工作区恢复；未知设备 Cookie 回退 Mac；两端 health、双隧道、登录和公网验证通过 |
 
-Mac 与 Pop!_OS 均运行 Later 私有分支 `535925d` 的 `.next-mobile`，不是上游原版。云端 Nginx 根据 HttpOnly `pi_web_device` Cookie 将同一入口粘性路由到 `33041`（Mac）或 `33043`（Linux）；设备选择控制面固定到 Mac，Linux 在已加载页面期间掉线时仍可切回。若浏览器带着 Linux 偏好冷启动且 Linux 已离线，当前恢复方式是清除该站点的设备偏好；专用恢复页列为后续增强。
+Mac 与 Pop!_OS 均运行 Later 私有分支 `510d6c4` 的 `.next-mobile`，不是上游原版。Mac build id 为 `cmtDslBfwMSS9QaQQ5V2_`，Pop!_OS build id 为 `B-pz47dr5OvRMHoUOLCus`；部署前产物分别保存在 `.next-mobile-backup-510d6c4-20260730T163200Z` 和 `.next-mobile-backup-510d6c4-20260730T163100Z`。云端 Nginx 根据 HttpOnly `pi_web_device` Cookie 将设备数据面粘性路由到 `33041`（Mac）或 `33043`（Linux），同时把页面壳、静态资源、应用认证与设备选择控制面固定到 Mac。React 工作区在不重载文档的前提下先卸载旧设备连接、提交并验证路由偏好，再恢复目标设备自己的 Session/cwd/文件页签状态；支持时用同文档 View Transition 保留真实旧画面直到目标就绪。若浏览器带着 Linux 偏好冷启动且 Linux 已离线，当前恢复方式是清除该站点的设备偏好；专用恢复页列为后续增强。
 
 ## 已解决的仓库风险
 
@@ -72,13 +72,13 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 
 运行 `./scripts/check-upstream.sh` 会抓取并报告主仓差异，但不会改分支。自动合并容易在 PWA、依赖锁、移动 CSS 和部署脚本上静默覆盖自研行为，因此合并必须按 [维护与故障案例手册](./docs/maintenance-playbook.zh-CN.md) 人工验收。
 
-### P4：同源双设备闭环已完成，交互与运行态仍需真机持续验收
+### P4：同源无刷新双设备闭环已完成，运行态仍需真机持续验收
 
-[多设备 ADR](./docs/multi-device-architecture.zh-CN.md) 的同源入口、设备选择 API、HttpOnly 路由 Cookie、Nginx 白名单粘性路由、共享应用登录和两台真实设备已完成服务端验收。Safari/installed PWA 需要刷新后确认菜单交互；运行中切换、Linux 离线时回切和跨设备 Push 仍需真机验收。健康聚合、中央 Push broker 与设备授权是后续增强，不阻塞当前同终端切换。
+[多设备 ADR](./docs/multi-device-architecture.zh-CN.md) 的同源入口、设备选择 API、HttpOnly 路由 Cookie、Nginx 白名单粘性路由、共享应用登录和两台真实设备已完成服务端与 390×844 浏览器验收。切换不再重载 document；旧设备 EventSource/fetch 通过 React unmount 清理，路由探针失败会回滚原设备，目标设备恢复自己的工作区快照。Safari/installed PWA 仍需用户真机体验；运行中切换、Linux 离线时回切和跨设备 Push 仍需持续验收。手机交互审计与待审核方案见 [移动端 UX 审计](./docs/mobile-ux-audit-2026-07-30.zh-CN.md)。
 
 ### P5：Linux 活跃 Session 后的优雅重启需要补强
 
-同步模型配置后的 `systemctl restart pi-web` 在此前出现过 `session_start` 的进程上达到 `TimeoutStopSec=30`，systemd 最终用 SIGKILL 回收 Next 子进程；新进程随即正常启动，health 与 4 个 Provider 推理均通过。当前未发现 Session 文件损坏，但后续需要为 production 增加明确的 AgentSession drain/关闭流程，并把“活跃任务重启”加入部署回归。
+同步模型配置后的 `systemctl restart pi-web` 在此前出现过 `session_start` 的进程上达到 `TimeoutStopSec=30`；部署 `510d6c4` 时已确认运行 Session 为 0，旧 Linux 服务仍再次达到 30 秒超时并由 systemd 回收 Next 子进程。新进程随即正常启动，health、relay 与目标 build 均通过。当前未发现 Session 文件损坏，但这说明问题不只由活跃 Agent 引起，需同时审计长连接/进程信号转发，为 production 增加明确的 drain/关闭流程，并把“空闲重启”和“活跃任务重启”都加入部署回归。
 
 ## 下一次更新本文件时至少记录
 
