@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { DeviceDescriptor, DeviceDirectoryResponse } from "@/lib/device-directory-core";
 import { switchGatewayDevice } from "@/lib/device-selection-client";
 import type { InitialNavigation } from "@/lib/initial-navigation";
@@ -26,12 +27,6 @@ interface WorkspaceState {
   directory: DeviceDirectoryResponse | null;
   epoch: number;
   snapshot: DeviceWorkspaceSnapshot;
-}
-
-function waitForReactPaint(): Promise<void> {
-  return new Promise((resolve) => {
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
-  });
 }
 
 async function runWithViewTransition(update: () => Promise<void>): Promise<void> {
@@ -94,14 +89,15 @@ export function useDeviceWorkspace(
     setSwitchError(null);
 
     const updateWorkspace = async () => {
-      setTransition({ phase: "switching", targetDeviceId: device.id, targetDeviceName: device.name });
+      flushSync(() => {
+        setTransition({ phase: "switching", targetDeviceId: device.id, targetDeviceName: device.name });
+      });
 
-      // The root stops rendering the old workspace in this phase. Two frames let
-      // React run effect cleanup before the preference cookie changes, so old
-      // EventSource/fetch work cannot cross the device boundary. When supported,
-      // the View Transition API keeps the real previous workspace visible while
-      // this async control-plane transaction runs.
-      await waitForReactPaint();
+      // flushSync commits the unmount before the preference cookie changes, so
+      // old EventSource/fetch work cannot cross the device boundary. Crucially,
+      // do not await requestAnimationFrame inside a View Transition callback:
+      // rendering is paused until that callback settles and the browser will
+      // eventually abort the transition as a DOM-update timeout.
 
       try {
         const nextDirectory = await switchGatewayDevice(device.id, currentDeviceId);
@@ -116,24 +112,23 @@ export function useDeviceWorkspace(
           readyTimerRef.current = null;
           setTransition({ phase: "idle", targetDeviceId: null, targetDeviceName: null });
         }, DEVICE_WORKSPACE_READY_TIMEOUT_MS);
-        setWorkspace((current) => ({
-          deviceId: device.id,
-          directory: nextDirectory,
-          epoch: current.epoch + 1,
-          snapshot: nextSnapshot,
-        }));
-        setTransition({ phase: "loading", targetDeviceId: device.id, targetDeviceName: device.name });
-        // Resolve the View Transition callback after React has committed the
-        // target workspace's first paint. Data readiness remains governed by
-        // markWorkspaceReady/the bounded timer outside the visual transaction.
-        await waitForReactPaint();
+        flushSync(() => {
+          setWorkspace((current) => ({
+            deviceId: device.id,
+            directory: nextDirectory,
+            epoch: current.epoch + 1,
+            snapshot: nextSnapshot,
+          }));
+          setTransition({ phase: "loading", targetDeviceId: device.id, targetDeviceName: device.name });
+        });
       } catch (error) {
         const restoredSnapshot = loadDeviceWorkspaceSnapshot(window.sessionStorage, currentDeviceId)
           ?? emptyDeviceWorkspaceSnapshot(navigationFromSearch(window.location.search));
-        setWorkspace((current) => ({ ...current, epoch: current.epoch + 1, snapshot: restoredSnapshot }));
-        setTransition({ phase: "idle", targetDeviceId: null, targetDeviceName: null });
-        setSwitchError(error instanceof Error ? error.message : "Unable to switch device");
-        await waitForReactPaint();
+        flushSync(() => {
+          setWorkspace((current) => ({ ...current, epoch: current.epoch + 1, snapshot: restoredSnapshot }));
+          setTransition({ phase: "idle", targetDeviceId: null, targetDeviceName: null });
+          setSwitchError(error instanceof Error ? error.message : "Unable to switch device");
+        });
       }
     };
 

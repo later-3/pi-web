@@ -8,9 +8,10 @@ const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "
 
 test("unmounts the old workspace before changing the gateway preference", () => {
   const phaseIndex = source.indexOf('phase: "switching"');
-  const teardownIndex = source.indexOf("await waitForReactPaint()");
+  const teardownIndex = source.indexOf("flushSync(() =>");
   const switchIndex = source.indexOf("await switchGatewayDevice(device.id, currentDeviceId)");
-  assert.ok(phaseIndex >= 0 && phaseIndex < teardownIndex && teardownIndex < switchIndex);
+  assert.ok(teardownIndex >= 0 && teardownIndex < phaseIndex && phaseIndex < switchIndex);
+  assert.doesNotMatch(source, /window\.requestAnimationFrame\(/);
 });
 
 test("keeps the real previous workspace visible during a supported async switch", () => {
@@ -18,7 +19,7 @@ test("keeps the real previous workspace visible during a supported async switch"
   assert.match(source, /document\.startViewTransition\(update\)/);
   assert.match(source, /transition\.finished\.catch\(\(\) => undefined\)/);
   assert.doesNotMatch(source, /await ready/);
-  assert.match(source, /target workspace's first paint/);
+  assert.match(source, /rendering is paused until that callback settles/);
   assert.match(source, /prefers-reduced-motion: reduce/);
 });
 
