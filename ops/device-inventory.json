@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 2,
+  "updatedAt": "2026-07-31",
+  "policy": {
+    "secretStorage": "Passwords, private keys, tokens and cookies are excluded from this inventory and from Git.",
+    "preferredAuthentication": "per-device SSH public keys",
+    "primaryRoute": "restricted cloud relay",
+    "futureDirectRoute": "Tailscale or another authenticated overlay may be introduced without removing the relay fallback"
+  },
+  "defaults": {
+    "identityFile": "~/.ssh/id_ed25519_later_mesh",
+    "connectTimeoutSeconds": 8,
+    "hostKeyAliasPrefix": "later-device-"
+  },
+  "bastion": {
+    "deviceId": "cloud-relay",
+    "sshAlias": "later-bastion",
+    "host": "121.43.113.236",
+    "port": 22,
+    "forwardUser": "later-mesh",
+    "loopbackAddress": "127.0.0.1"
+  },
+  "devices": [
+    {
+      "id": "mac-main",
+      "name": "Main Mac",
+      "role": "primary-workstation",
+      "hostname": "MacBook-Pro-2",
+      "os": "macOS 15.5 (24F74)",
+      "arch": "arm64",
+      "account": "xulater",
+      "sshAlias": "later-mac",
+      "management": {
+        "mode": "relay",
+        "relayPort": 33101,
+        "relayUser": "later-relay-mac",
+        "relayKeyFingerprint": "SHA256:mury2ob1l4iPcfeT50cxP6jaqDDfbc6W2WzjwynZzuc",
+        "service": "LaunchAgent com.later.device-relay"
+      },
+      "observedAddresses": [
+        {
+          "address": "192.168.31.238",
+          "scope": "lan-previous",
+          "observedAt": "2026-07-31",
+          "dynamic": true
+        },
+        {
+          "address": "172.20.10.10",
+          "scope": "lan-current",
+          "observedAt": "2026-07-31",
+          "dynamic": true
+        }
+      ],
+      "access": {
+        "ssh": "ed25519-public-key",
+        "keyFingerprint": "SHA256:3ncAJEVUWqsPyvuAqWMBnWsR5bz+7aM4UZwWzLlSNew",
+        "sudo": "interactive-password-required",
+        "passwordState": "not-provided-and-not-required-for-remote-ssh",
+        "passwordManagerReference": null
+      },
+      "paths": {
+        "piWeb": "/Users/xulater/Code/pi-web",
+        "piAgent": "/Users/xulater/.pi/agent",
+        "piWebCredentials": "/Users/xulater/Code/pi-web/deploy/secrets/pi-web-auth-credentials.json"
+      },
+      "constraints": [
+        "The management relay and Pi Web production are user LaunchAgents and require the xulater login session.",
+        "The macOS application firewall was disabled when observed on 2026-07-31.",
+        "Tailscale is installed but was logged out when observed on 2026-07-31."
+      ]
+    },
+    {
+      "id": "linux-home",
+      "name": "Home Pop!_OS",
+      "role": "linux-workstation",
+      "hostname": "pop-os",
+      "os": "Pop!_OS 24.04 LTS",
+      "arch": "x86_64",
+      "account": "later",
+      "sshAlias": "later-pop",
+      "management": {
+        "mode": "relay",
+        "relayPort": 33102,
+        "relayUser": "later-relay-pop",
+        "relayKeyFingerprint": "SHA256:hULv1lQDyHQl+Ix+PzmNiMlAZJ4oYYSjUQiSJRju3BU",
+        "service": "systemd --user later-device-relay.service"
+      },
+      "observedAddresses": [
+        {
+          "address": "192.168.1.68",
+          "scope": "lan",
+          "observedAt": "2026-07-31",
+          "dynamic": true
+        },
+        {
+          "address": "192.168.31.21",
+          "scope": "lan-secondary",
+          "observedAt": "2026-07-31",
+          "dynamic": true
+        }
+      ],
+      "access": {
+        "ssh": "ed25519-public-key",
+        "keyFingerprint": "SHA256:J1X7Szw4Ep5khDIcO3Clz2dXdIDqiA3u+Dr/DhZpvsw",
+        "sudo": "interactive-password-required",
+        "passwordState": "not-provided-and-not-required-for-remote-ssh",
+        "passwordManagerReference": null
+      },
+      "paths": {
+        "piWeb": "/home/later/Code/pi-web",
+        "piAgent": "/home/later/.pi/agent",
+        "piWebCredentials": "/home/later/.config/pi-web/credentials.json"
+      },
+      "constraints": [
+        "The management relay is a persistent user service; loginctl Linger=yes.",
+        "Next.js listens on loopback; LAN port 80 is an operational fallback only.",
+        "The old SSH address 192.168.31.22 is stale and must not be used."
+      ]
+    },
+    {
+      "id": "cloud-relay",
+      "name": "Aliyun Relay",
+      "role": "bastion-and-pi-web-gateway",
+      "hostname": "iZbp1al9u5yylnhlo1t7ixZ",
+      "os": "Ubuntu 24.04.4 LTS",
+      "arch": "x86_64",
+      "account": "root",
+      "sshAlias": "later-cloud-admin",
+      "management": {
+        "mode": "direct",
+        "host": "121.43.113.236",
+        "port": 22
+      },
+      "observedAddresses": [
+        {
+          "address": "121.43.113.236",
+          "scope": "public",
+          "observedAt": "2026-07-31",
+          "dynamic": false
+        },
+        {
+          "address": "172.25.148.143",
+          "scope": "private",
+          "observedAt": "2026-07-31",
+          "dynamic": true
+        }
+      ],
+      "access": {
+        "ssh": "per-device-ed25519-public-keys-for-admin; restricted-ed25519-keys-for-forwarding",
+        "keyFingerprint": "SHA256:DGmdVgqtQT8ypioLXUDIrcG5Nd7eMOKa2B2HzjTMENI",
+        "sudo": "not-applicable-root-account",
+        "passwordState": "server-side-password-and-keyboard-interactive-authentication-disabled",
+        "passwordManagerReference": "not-applicable"
+      },
+      "paths": {
+        "nginx": "/etc/nginx/conf.d/pi-web.conf",
+        "cloudflared": "/etc/cloudflared/config.yml",
+        "sshHardening": "/etc/ssh/sshd_config.d/60-later-device-access-hardening.conf"
+      },
+      "constraints": [
+        "Relay ports bind to 127.0.0.1 only and are reachable only through the restricted forward account.",
+        "Password and keyboard-interactive SSH authentication were disabled on 2026-07-31; root login is public-key only.",
+        "The host firewall was inactive when observed on 2026-07-31; exposure is currently controlled by listeners and cloud security-group rules."
+      ]
+    }
+  ]
+}

@@ -85,4 +85,5 @@ Push 内容只使用有界预览和 Session 深链，不发送完整对话。HTT
 - PWA 安装：[PWA 指南](./PWA.md)
 - Session/模型使用：[Pi Agent 手册](./pi-agent-model-usage.zh-CN.md) 与 [Codex 手册](./codex-session-model-usage.zh-CN.md)
 - 多设备：[多设备接入架构 ADR](./multi-device-architecture.zh-CN.md)
+- 跨设备主机访问与配置：[多设备控制手册](./device-access.zh-CN.md) 与 [设备新增/下线/密钥轮换](./device-onboarding.zh-CN.md)
 - 手机交互待审核方案：[移动端 UX 审计](./mobile-ux-audit-2026-07-30.zh-CN.md)

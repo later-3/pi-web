@@ -13,7 +13,7 @@
 | 上游合并提交 | `d700491` |
 | Pi SDK | `0.83.0` |
 | Node.js 下限 | `22.19.0` |
-| 当前验证 | TypeScript、ESLint、`247/247` Node tests 通过；公网同源无刷新双设备切换与 Linux 4 Provider 实际推理验收通过 |
+| 当前验证 | TypeScript、ESLint、`254/254` Node tests 通过；公网同源无刷新双设备切换、跨设备控制层与 Linux 4 Provider 实际推理验收通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
 
 ## 当前自研能力
@@ -79,6 +79,32 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 ### P5：Linux 活跃 Session 后的优雅重启需要补强
 
 同步模型配置后的 `systemctl restart pi-web` 在此前出现过 `session_start` 的进程上达到 `TimeoutStopSec=30`；部署 `510d6c4` 时已确认运行 Session 为 0，旧 Linux 服务仍再次达到 30 秒超时并由 systemd 回收 Next 子进程。新进程随即正常启动，health、relay 与目标 build 均通过。当前未发现 Session 文件损坏，但这说明问题不只由活跃 Agent 引起，需同时审计长连接/进程信号转发，为 production 增加明确的 drain/关闭流程，并把“空闲重启”和“活跃任务重启”都加入部署回归。
+
+## 2026-07-31 跨设备管理与环境归档
+
+| 项目 | 当前事实 |
+|---|---|
+| 事实清单 | `ops/device-inventory.json`；归档 Mac、Pop!_OS、云服务器的账号、OS/架构、IP 观察值、路径、认证方式、公钥指纹和约束，不含秘密 |
+| 管理入口 | `later-device` / `scripts/device-access.sh`；设备 id 为 `mac-main`、`linux-home`、`cloud-relay` |
+| 跨网路径 | 每台设备 1 条出站 reverse SSH relay；云端 `33101/33102` 仅监听 `127.0.0.1`，通过无 Shell 的 `later-mesh` 受限转发 |
+| 持久服务 | Mac `com.later.device-relay` LaunchAgent；Pop!_OS `later-device-relay.service` user systemd，`Linger=yes` |
+| 认证边界 | 每台设备独立 ED25519 管理 key 与 relay key；系统交互密码未读取、未写入 Git，SSH 管理不依赖密码 |
+| 云 SSH | `PasswordAuthentication no`、`KbdInteractiveAuthentication no`、`PermitRootLogin prohibit-password`；password-only 负向测试被拒 |
+| 验证证据 | 3 个来源 × 3 个目标：`9/9` 登录、`9/9` 临时写入/校验/删除；双 relay 强制重启后恢复；公网端口、Shell 与越权转发负向测试通过 |
+| Pi Web 回归 | `manage-pi-web.sh status` 与 `verify-mobile-relay.sh` 全部通过；原 `33041/33043` HTTP 隧道未修改 |
+
+### 2026-07-31 可交接增强
+
+1. Inventory 升级为 schema v2，明确 `relay/direct` 路由、relay user/port/key 指纹、bastion 和默认 SSH 参数；`ops/device-inventory.schema.json` 是机器可读契约。
+2. 5 个 management/relay **公钥**进入 `ops/device-public-keys/`，`later-device check` 会核对实际 SHA256 指纹；私钥继续只留设备本机。
+3. `render-device-ssh-config.sh` 从 inventory 确定性生成所有 Host blocks；新增第三台 relay 设备无需改 SSH/cloud 安装代码。生成快照漂移、重复 id/alias/port/user 会失败。
+4. 云端安装改为 inventory 驱动的动态 `permitopen/permitlisten`，apply 前支持 `--plan`，替换 key 前备份到 `/var/backups/later-device-access/`，只管理 root `authorized_keys` 中带标记的 block。
+5. CLI 新增 `topology`、`facts all`、`audit all`，并修复复杂 `run ... -- bash -lc '...'` 的远端参数边界；新增 client、relay、key prepare、授权、撤销和 host-key 固定脚本。
+6. 新增 [设备新增/下线/密钥轮换手册](./docs/device-onboarding.zh-CN.md)，主手册补齐 Terminal、Pi 对话、架构、信任边界、端口、排障、规模阈值与验收矩阵。
+7. Mac 实时 LAN 地址已变为 `172.20.10.10`，旧 `192.168.31.238` 归档为历史动态地址；从当前 Mac 网络直连 Pop `192.168.1.68` 超时，但 cloud relay 全程正常，验证管理链路不依赖 LAN。
+8. 真实验收：3 个来源 × 3 个目标 `9/9` 登录和 `9/9` 写入/校验/删除；双 relay 强制重连恢复；公网端口、bastion Shell、越权转发均失败；Mac、Pop、Cloud 各自 `14/14` 离线测试通过。
+
+完整操作、回滚和风险见 [多设备访问与环境归档](./docs/device-access.zh-CN.md)。工作区级 `AGENTS.md` 已部署到 Mac `/Users/xulater/Code` 与 Pop!_OS `/home/later/Code`，以后在任意子项目的 Pi 中都应先用 `later-device facts` 定位目标，再执行配置。
 
 ## 下一次更新本文件时至少记录
 

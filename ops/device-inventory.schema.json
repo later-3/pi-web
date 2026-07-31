@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://later.local/schemas/device-inventory.schema.json",
+  "title": "Later device access inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "updatedAt", "policy", "defaults", "bastion", "devices"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "updatedAt": { "type": "string", "format": "date" },
+    "policy": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identityFile", "connectTimeoutSeconds", "hostKeyAliasPrefix"],
+      "properties": {
+        "identityFile": { "type": "string", "minLength": 1 },
+        "connectTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "hostKeyAliasPrefix": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" }
+      }
+    },
+    "bastion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deviceId", "sshAlias", "host", "port", "forwardUser", "loopbackAddress"],
+      "properties": {
+        "deviceId": { "$ref": "#/$defs/id" },
+        "sshAlias": { "$ref": "#/$defs/sshAlias" },
+        "host": { "$ref": "#/$defs/host" },
+        "port": { "$ref": "#/$defs/port" },
+        "forwardUser": { "$ref": "#/$defs/account" },
+        "loopbackAddress": { "const": "127.0.0.1" }
+      }
+    },
+    "devices": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/device" }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$" },
+    "sshAlias": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$" },
+    "account": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9._-]{0,63}$" },
+    "host": { "type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[A-Za-z0-9:._-]+$" },
+    "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+    "management": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "relayPort", "relayUser", "relayKeyFingerprint", "service"],
+          "properties": {
+            "mode": { "const": "relay" },
+            "relayPort": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+            "relayUser": { "$ref": "#/$defs/account" },
+            "relayKeyFingerprint": { "type": "string", "pattern": "^SHA256:[A-Za-z0-9+/]+$" },
+            "service": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "host", "port"],
+          "properties": {
+            "mode": { "const": "direct" },
+            "host": { "$ref": "#/$defs/host" },
+            "port": { "$ref": "#/$defs/port" }
+          }
+        }
+      ]
+    },
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "role", "hostname", "os", "arch", "account", "sshAlias", "management", "observedAddresses", "access", "paths", "constraints"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "role": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "hostname": { "type": "string", "minLength": 1, "maxLength": 253 },
+        "os": { "type": "string", "minLength": 1 },
+        "arch": { "type": "string", "minLength": 1 },
+        "account": { "$ref": "#/$defs/account" },
+        "sshAlias": { "$ref": "#/$defs/sshAlias" },
+        "management": { "$ref": "#/$defs/management" },
+        "observedAddresses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["address", "scope", "observedAt", "dynamic"],
+            "properties": {
+              "address": { "type": "string", "minLength": 1 },
+              "scope": { "type": "string", "minLength": 1 },
+              "observedAt": { "type": "string", "format": "date" },
+              "dynamic": { "type": "boolean" }
+            }
+          }
+        },
+        "access": { "type": "object" },
+        "paths": { "type": "object", "additionalProperties": { "type": "string" } },
+        "constraints": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

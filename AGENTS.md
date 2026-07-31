@@ -10,6 +10,17 @@ Typecheck: `node_modules/.bin/tsc --noEmit`
 Lint: `npm run lint`  
 **Never run `next build` during dev** — pollutes `.next/` and breaks `npm run dev`.
 
+## Cross-device access
+
+Mac、Pop!_OS 与云服务器的可提交事实位于 `ops/device-inventory.json`，完整操作说明见 `docs/device-access.zh-CN.md`，新增/下线/轮换流程见 `docs/device-onboarding.zh-CN.md`。访问或配置另一台设备时：
+
+1. 先运行 `./scripts/device-access.sh facts <device-id>`，不要依赖会变化的 LAN IP；跨网 SSH 别名固定为 `later-mac`、`later-pop`、`later-cloud-admin`。
+2. 使用 `./scripts/device-access.sh run <device-id> -- <command>` 或 `ssh <alias>`；Pop!_OS 的独立安装副本是 `/home/later/.local/share/later-device-access/scripts/device-access.sh`。
+3. 设备 id 为 `mac-main`、`linux-home`、`cloud-relay`。`audit all` 做完整只读检查；`probe all` 只验证连通；`verify-write all` 会创建权限 `600` 的临时文件并立即删除。
+4. Inventory 只能保存账号、地址、路径、认证方式和公钥指纹；密码、私钥、Token、Cookie、Provider Key 与会话密钥不得写入 Git、聊天、命令参数或日志。
+5. 管理链路使用云端 loopback 反向 SSH relay；不得把 `33101/33102` 监听改到公网，也不得放宽云端 `permitopen`/`permitlisten` 白名单。
+6. 新增、下线或修改设备路由时，只更新 inventory 与 tracked public keys；运行 `check → render-device-ssh-config → test-device-access → install-cloud --plan`。不得直接手改生成的 `deploy/device-access/ssh-config` 或各机器 installed SSH config。
+
 ## Project Recovery & Maintenance
 
 Before substantial work, read `PROJECT_STATE.md` and the relevant document:
