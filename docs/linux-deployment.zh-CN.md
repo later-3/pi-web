@@ -128,7 +128,7 @@ NO_PROXY=localhost,127.0.0.1
 
 ## 5. 安装 systemd 服务
 
-创建 `/etc/systemd/system/pi-web.service`：
+通用部署可按下面内容创建 `/etc/systemd/system/pi-web.service`；本项目 Pop!_OS 实例使用的无秘密、可交接版本保存在 [`deploy/linux/pi-web.service`](../deploy/linux/pi-web.service)：
 
 ```ini
 [Unit]
@@ -142,11 +142,13 @@ User=piweb
 Group=piweb
 WorkingDirectory=/opt/pi-web
 EnvironmentFile=/home/piweb/.config/pi-web/pi-web.env
-ExecStart=/usr/bin/npm run start:mobile
+Environment=PI_WEB_DIST_DIR=.next-mobile
+ExecStart=/usr/bin/node /opt/pi-web/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 30141
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30
 KillSignal=SIGTERM
+KillMode=mixed
 NoNewPrivileges=true
 PrivateTmp=true
 UMask=0077
@@ -155,7 +157,9 @@ UMask=0077
 WantedBy=multi-user.target
 ```
 
-把 `/usr/bin/npm` 替换为 `command -v npm` 的真实绝对路径。启动并验证：
+把 `/usr/bin/node` 替换为 `command -v node` 的真实绝对路径，并按部署目录调整 Next CLI 的绝对路径。不要用 `npm run start:mobile` 作为 systemd 的长期 `ExecStart`：npm 与 shell wrapper 会让信号转发、主进程归属和停止结果变得含糊。`KillMode=mixed` 先把 `SIGTERM` 交给直接受管的 Node 主进程，超时后再回收同一 cgroup 的残留子进程。
+
+启动并验证：
 
 ```bash
 sudo systemctl daemon-reload
@@ -164,6 +168,8 @@ sudo systemctl status pi-web --no-pager
 sudo journalctl -u pi-web -n 100 --no-pager
 curl --fail --silent http://127.0.0.1:30141/api/health
 ```
+
+健康接口通过后还必须确认 `systemctl is-active pi-web` 精确返回 `active`，并用 `ss -ltnp 'sport = :30141'` 核对监听进程属于 unit 的 cgroup。`activating (auto-restart)` 加上仍可访问的 health 通常意味着旧进程已经脱离 systemd、正在占用端口，不能算部署成功。
 
 ## 6. 配置 HTTPS 反向代理
 
@@ -283,6 +289,6 @@ curl --fail --silent http://127.0.0.1:30141/api/health
 10. `volcengine-ark`、`dashscope-coding`、`kimi-code`、`kimi6603` 各选择一个代表模型完成真实最小推理，上游状态均为 `200`；默认模型复测延迟 784ms。
 11. 本次配置同步重启在此前出现过 `session_start` 的进程上达到 30 秒停止超时并由 systemd 强制回收；服务随后自动恢复且数据/模型验收正常。后续需补 AgentSession drain 和活跃任务重启回归，不能把这次恢复等同于优雅停机。
 12. 同一 390×844 生产浏览器完成 `linux-home → mac-main → linux-home` 无 document reload 双向切换：URL 不变，过渡期保留旧真实工作区，目标侧分别恢复设备本地 cwd；切换专项与全量 `247/247` tests 通过。
-13. 部署 `510d6c4` 前确认 Linux 运行 Session 为 0，但 `systemctl stop pi-web` 仍达到 30 秒超时；新服务、build、health 与 relay 均正常。这把排查范围扩大到长连接/信号转发，空闲与活跃重启都必须加入后续 drain 回归。
+13. 部署 `510d6c4` 前确认 Linux 运行 Session 为 0，但 `systemctl stop pi-web` 仍达到 30 秒超时；部署 `422194f` 时进一步确认 npm → shell → next-server wrapper 会留下占用 `30141` 的孤儿进程，使 health 正常而 unit 处于 `activating (auto-restart)`。服务已改为 systemd 直接管理 Node/Next CLI，并设置 `KillMode=mixed`；空闲与活跃重启仍都必须加入 drain 回归。
 
 尚未完成的项目是手机 Safari/installed PWA 的菜单手感与运行中切换验收、完整 Session/SSE 任务、目标离线回切、活跃 Session 优雅重启和双设备 Push；这些不应由单次模型或 HTTPS 探针冒充已经通过。

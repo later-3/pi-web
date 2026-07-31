@@ -1,0 +1,25 @@
+[Unit]
+Description=Later Pi Web (Pop!_OS)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=later
+Group=later
+WorkingDirectory=/home/later/Code/pi-web
+Environment=HOME=/home/later
+EnvironmentFile=/home/later/.config/pi-web/pi-web.env
+Environment=PI_WEB_DIST_DIR=.next-mobile
+ExecStart=/usr/bin/node /home/later/Code/pi-web/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 30141
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+KillMode=mixed
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

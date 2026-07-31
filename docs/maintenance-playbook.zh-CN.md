@@ -264,6 +264,15 @@ git push -u origin codex/later-custom
 - 自动化验证：覆盖正确/错误 Basic header、WWW-Authenticate、静态资源边界、两模式互斥、PWA public path 与签名 Cookie。
 - 防复发：部署配置只能选择一种认证模式；Nginx 不再额外叠加 `auth_basic`。
 
+### 3.20 Health 正常但 systemd 一直自动重启
+
+- 症状：升级后的 `http://127.0.0.1:30141/api/health` 返回 200，但 `systemctl is-active pi-web` 是 `activating`，journal 反复报告新进程端口占用。
+- 根因证据：旧 unit 通过 `npm run start:mobile` 启动 npm → shell → next-server。空闲停止仍达到 30 秒超时，systemd 报告 unit 停止后 `next-server` 残留；残留进程继续提供新 artifact 的 health，而 unit 的重启实例因 `EADDRINUSE` 退出。
+- 修复：先从认证 API确认运行 Session 为 0，再核对端口 PID、账号、命令、父进程和 PGID，只回收属于该部署的残留进程。unit 改为 `/usr/bin/node .../next/dist/bin/next start`，显式设置 `PI_WEB_DIST_DIR` 和 `KillMode=mixed`，让 systemd 直接拥有服务主进程。
+- 自动化验证：`deploy/linux-service.test.mjs` 禁止恢复 npm wrapper，并锁定直接 Node、dist dir、SIGTERM/30 秒/mixed kill 语义。
+- 部署验证：不能只 curl health；必须同时得到 unit `active`、端口 PID 位于 unit cgroup、relay health 和公网目标路由成功。2026-07-31 应用直接 Node unit 后，确认 0 个 Session 的空闲 restart 从超时 30 秒降为 52ms，MainPID 与端口 PID 相同。活跃 Session 不得为了部署被中断，等其自然结束后再重启。
+- 防复发：部署脚本分阶段等待命令返回，不把后续命令提前写进交互式 `sudo systemctl stop` 的 PTY；停止超时后重新采集 unit、cgroup、端口与 Session 证据，不能盲目 `killall node`。
+
 ## 4. 新案例模板
 
 ```markdown

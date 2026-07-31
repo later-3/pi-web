@@ -240,6 +240,12 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - `hooks/useAudio.ts` stores the toggle in `localStorage` as `pi-sound-enabled` and reuses one `AudioContext`.
 - Browser autoplay policy means sound must be unlocked from a user gesture; `ChatInput` calls the unlock hook from interactive controls, and `ChatWindow` plays the tone from `onAgentEnd`.
 
+### Linux production process ownership
+- The tracked Pop!_OS unit is `deploy/linux/pi-web.service`. systemd must execute Node + Next CLI directly with `PI_WEB_DIST_DIR=.next-mobile`; do not restore an `npm run start:mobile` wrapper.
+- The npm → shell → next-server chain can survive a 30-second stop timeout as an orphan. It may keep `/api/health` green while the unit loops in `activating (auto-restart)` because the port is occupied.
+- Before any restart, authenticate to `/api/agent/running` and wait for zero running sessions. Deployment success requires all three: health `200`, `systemctl is-active pi-web` exactly `active`, and the port listener owned by the unit cgroup.
+- Never use broad `killall node`. When recovery is necessary, capture unit/cgroup/port/PGID evidence and reclaim only the verified Pi Web process after running sessions have naturally settled.
+
 ### Exported session HTML
 - `/api/sessions/[id]/export` delegates to pi's export helper, then patches recursive tree helpers in the generated HTML to iterative versions so very deep linear sessions do not overflow the browser call stack.
 
