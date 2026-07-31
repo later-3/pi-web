@@ -38,6 +38,14 @@ try {
 
 const { port, hostname, openBrowser } = parseLaunchOptions();
 const loopbackHostnames = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+const passwordEnabled = Boolean(process.env.PI_WEB_PASSWORD);
+const appAuthEnabled = [
+  "PI_WEB_AUTH_REQUIRED",
+  "PI_WEB_AUTH_CREDENTIALS_FILE",
+  "PI_WEB_AUTH_SESSION_SECRET_FILE",
+  "PI_WEB_AUTH_USERNAME",
+  "PI_WEB_AUTH_PASSWORD_FILE",
+].some((name) => Boolean(process.env[name]));
 
 if (!fs.existsSync(nextDir)) {
   console.error("Build artifacts not found. Please report this issue.");
@@ -45,9 +53,21 @@ if (!fs.existsSync(nextDir)) {
 }
 
 if (!loopbackHostnames.has(hostname)) {
-  console.warn(
-    `Warning: pi-web is listening on ${hostname} without authentication. Only use this on a trusted network.`,
-  );
+  if (passwordEnabled && appAuthEnabled) {
+    console.warn(
+      "Warning: PI_WEB_PASSWORD and PI_WEB_AUTH_* are both configured. Pi Web will fail closed until only one authentication mode remains.",
+    );
+  } else if (passwordEnabled) {
+    console.warn(
+      `Warning: pi-web is listening on ${hostname} with Basic Auth over HTTP. Use HTTPS or a trusted VPN to protect the password in transit.`,
+    );
+  } else if (appAuthEnabled) {
+    console.warn(`Pi Web application login is enabled for ${hostname}.`);
+  } else {
+    console.warn(
+      `Warning: pi-web is listening on ${hostname} without authentication. Only use this on a trusted network.`,
+    );
+  }
 }
 
 const nextArgs = ["start", "-p", port];

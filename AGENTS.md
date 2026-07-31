@@ -177,6 +177,9 @@ Tool names are passed at session creation (`POST /api/agent/new` → `toolNames[
 ### Model defaults for new sessions
 `GET /api/models` returns `defaultModel` read from `~/.pi/agent/settings.json`. `ChatWindow` pre-selects this on mount for new sessions.
 
+### `enabledModels` scoping
+The `enabledModels` setting uses pi's `--models` syntax: minimatch globs against `provider/modelId` or a bare `modelId`, fuzzy matching for non-glob patterns, and an optional `:thinkingLevel` suffix. Never compare those patterns as literal strings — `lib/model-scope.ts` delegates to the SDK's `resolveModelScopeWithDiagnostics()` so pi-web and the TUI agree on the visible model list, and falls back to all available models when patterns resolve to nothing. `startRpcSession()` resolves that scope before creating an AgentSession and passes the selected initial model, thinking pin, and SDK-native `scopedModels` atomically; `GET /api/models` reuses the helper only for selector data, `thinkingLevelPins`, and `modelScopeWarnings` display.
+
 ### SSE reconnect on page refresh mid-stream
 On `ChatWindow` mount, `GET /api/agent/[id]` is called. If `state.isStreaming === true`, SSE is reconnected automatically. `thinkingLevel` and `isCompacting` are also synced from this response.
 
@@ -209,12 +212,15 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 ### Auth and model config
 - `ModelsConfig` combines models from `~/.pi/agent/models.json` with provider auth status from pi's `AuthStorage`/`ModelRegistry`.
 - Pi Web application login supports multiple accounts from `PI_WEB_AUTH_CREDENTIALS_FILE`; signed cookies are bound to the matching account. The legacy single-account username/password-file settings remain supported.
+- Provider listing is capability-driven, never id-driven: `lib/provider-listing.ts` decides membership from `auth.apiKey.login` / `auth.oauth` plus the stored credential type, so dual-auth providers (anthropic and github-copilot today — which providers declare both changes between SDK releases, so never assume it from an id) appear exactly once and never fall through both lists (#309). `lib/provider-listing-runtime.ts` adapts `ModelRuntime` to those pure helpers.
+- auth.json holds **one** credential per provider and `ModelRuntime.logout()` deletes whichever it is. The delete routes therefore use `removeStoredCredentialIfType()` to compare and delete under the same file lock used by pi's auth storage. `ModelsConfig` also refreshes *both* provider lists after any auth change — refreshing one leaves a dual-auth provider rendered twice.
 - OAuth/device-code/manual-code flows are streamed by `GET /api/auth/login/[provider]`; manual code responses POST back with a short-lived token stored in `globalThis.__piLoginCallbacks`.
 - API-key routes store and remove keys through `AuthStorage`. Status endpoints must never return the raw key.
 - The model test route is `app/api/models-config/test/route.ts`; `app/api/models/test/` is not a real route.
 
 ### PWA app authentication
 - Public mobile deployment uses the app-owned `/login` route, not Nginx `auth_basic`; native Basic Auth prompts are unreliable in installed iOS PWAs.
+- Upstream `PI_WEB_PASSWORD` Basic Auth remains available for simple non-PWA deployments, but it is mutually exclusive with every `PI_WEB_AUTH_*` app-login setting. Configuring both fails closed with `503`.
 - `proxy.ts` protects pages and APIs with the signed `pi-web-session` HttpOnly cookie while allowing only login prerequisites, static app assets, and `/api/health` through.
 - Authentication is disabled for ordinary local development unless any `PI_WEB_AUTH_*` variable is present. Partial configuration fails closed with `503`.
 - Password and cookie-signing key stay in separate gitignored files. Rotating the password invalidates existing cookies through the token credential fingerprint.

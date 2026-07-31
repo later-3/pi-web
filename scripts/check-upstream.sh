@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Read-only upstream drift check. It updates remote-tracking refs, but never
-# changes the current branch, index, or working tree.
+# Read-only upstream drift check. It updates remote-tracking refs and queries
+# published Pi package versions, but never changes the current branch, index,
+# working tree, package manifest, or lockfiles.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 remote="${PI_WEB_UPSTREAM_REMOTE:-upstream}"
@@ -44,3 +45,61 @@ if (( upstream_only > 0 )); then
 else
   echo "Status: already contains the latest $remote/$branch."
 fi
+
+if [[ "${PI_WEB_CHECK_PI_PACKAGES:-1}" == "0" ]]; then
+  echo
+  echo "Official Pi package check: skipped (PI_WEB_CHECK_PI_PACKAGES=0)."
+  exit 0
+fi
+
+pi_packages=(
+  "@earendil-works/pi-coding-agent"
+  "@earendil-works/pi-agent-core"
+  "@earendil-works/pi-ai"
+  "@earendil-works/pi-tui"
+)
+pi_update_count=0
+pi_unknown_count=0
+
+echo
+echo "Official Pi stable package releases:"
+for package in "${pi_packages[@]}"; do
+  pinned="$({
+    node -e '
+      const manifest = require(process.argv[1]);
+      const packageName = process.argv[2];
+      const version = manifest.dependencies?.[packageName] ?? manifest.devDependencies?.[packageName];
+      if (typeof version !== "string") process.exit(1);
+      process.stdout.write(version);
+    ' "$repo_root/package.json" "$package"
+  } 2>/dev/null || true)"
+
+  latest="$(npm view "$package" version --silent 2>/dev/null || true)"
+  latest="${latest##*$'\n'}"
+
+  if [[ -z "$pinned" ]]; then
+    printf '  %-42s pinned: %-12s latest: %s\n' "$package" "not-used" "${latest:-unknown}"
+    continue
+  fi
+  if [[ -z "$latest" ]]; then
+    printf '  %-42s pinned: %-12s latest: unknown\n' "$package" "$pinned"
+    ((pi_unknown_count += 1))
+    continue
+  fi
+  if [[ "$pinned" == "$latest" ]]; then
+    printf '  %-42s pinned: %-12s latest: %-12s OK\n' "$package" "$pinned" "$latest"
+  else
+    printf '  %-42s pinned: %-12s latest: %-12s REVIEW\n' "$package" "$pinned" "$latest"
+    ((pi_update_count += 1))
+  fi
+done
+
+if (( pi_update_count > 0 )); then
+  echo "Pi status: $pi_update_count stable package update(s) require a separate compatibility review."
+elif (( pi_unknown_count > 0 )); then
+  echo "Pi status: no mismatch found, but $pi_unknown_count package version(s) could not be queried."
+else
+  echo "Pi status: all pinned Pi packages match their latest stable releases."
+fi
+
+echo "Policy: unreleased commits on the Pi source main branch are research input, not upgrade candidates."

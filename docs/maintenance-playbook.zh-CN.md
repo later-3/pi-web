@@ -14,11 +14,15 @@
 ./scripts/check-upstream.sh
 ```
 
-脚本只执行 fetch 和差异统计，不切分支、不改 index、不合并。输出中的：
+脚本执行 Pi Web fetch/差异统计，并把项目固定的 4 个 Pi package 与 npm 稳定最新版比较；它不切分支、不改 index/manifest/lockfile、不合并。输出中的：
 
 - `Upstream-only > 0`：主仓有待评估提交；
 - `Local-only > 0`：自研分支有主仓没有的正常提交；
 - `Working tree: dirty`：先审计并保存当前工作，不能直接同步。
+- `Pi ... REVIEW`：官方 Pi 有新的稳定 package，另开兼容性升级，不与 Pi Web merge 混做；
+- `Pi ... unknown`：网络或 registry 查询失败，不能据此判断 Pi 已是最新版。
+
+完整的两条版本线、2026-07-31 基线与升级门槛见 [Pi Web 与 Pi 上游版本审计](./upstream-version-audit.zh-CN.md)。
 
 想每天定时只做提醒，可在运行用户的 crontab 加一条日志任务：
 
@@ -91,6 +95,8 @@ bun install --lockfile-only --ignore-scripts
 ```
 
 同日继续同步 `upstream/main@9d1721f` 时，`app/globals.css` 与 `components/AppShell.tsx` 发生 2 个冲突。最终同时保留上游可拖拽侧栏及其持久化、Later 的移动视口/安全区和设备切换入口；合并提交为 `d700491`，不得用整文件 ours/theirs 覆盖任一侧。
+
+2026-07-31 同步 `upstream/main@cbb080d`（v0.8.5）时有 8 个冲突。模型启动同时保留上游 visible/enabled scope 与 Later extension/audience 约束；认证同时保留上游可选 Basic Auth 与 Later PWA 应用登录，但两种模式严格互斥；lockfile 从组合后的 package manifest 重新生成。完整决策矩阵见 [版本审计](./upstream-version-audit.zh-CN.md)。
 
 ### E. 验证
 
@@ -241,6 +247,22 @@ git push -u origin codex/later-custom
 - 自动化验证：切换专项 13 项覆盖安全清理顺序、同文档 epoch 替换、目标错路由拒绝、超时、Cookie 回滚、工作区清洗/上限与 reduced-motion 分支；全量 `247/247` tests、TypeScript 和 ESLint 通过。
 - 生产验证：最终 `linux-home → mac-main → linux-home` 两向切换约 395ms/375ms，保持同一 URL，目标侧分别恢复 `/Users/xulater/Code/Chat` 与 `/home/later/Code`；从刷新最终 build 到两次切换后的新增页面 warning/error 为 0。Mac/Pop!_OS 均部署 `67effb8` production artifact，公网登录、Nginx、双隧道和 health 全部通过。
 - 防复发：gateway 模式禁止 `window.location.assign/reload`；Cookie 修改前必须证明旧 workspace 已 unmount；目标设备必须通过 id 双重校验；失败必须可回滚。direct 模式仍可跨 origin 导航，但不能用于正式手机入口。
+
+### 3.18 把 Pi Web 更新与 Pi 更新混为一件事
+
+- 症状：只看 Pi Web 主仓就回答“Pi 也没有更新”，或看到 Pi 源码 `main` ahead 就准备改 SDK 依赖，之后还要重复查询 npm、release 和 commit 差异。
+- 根因：`agegr/pi-web` 与 `earendil-works/pi` 是独立发布线；源码主分支提交、GitHub release 和 npm stable package 不是同一状态。
+- 根因证据：2026-07-31 Pi Web 已发布 v0.8.5，而 4 个 Pi package 的 npm latest 仍为 0.83.0；Pi `main` 比 v0.83.0 多 38 个未发布提交。
+- 修复：`check-upstream.sh` 同时检查 Pi Web Git drift 和 4 个 Pi npm stable 版本；稳定 Pi 升级与 Pi Web merge 拆成两个变更。
+- 防复发：报告必须分别写 Pi Web stable、Pi package stable、Pi main unreleased；未发布 commit 只能作为风险研究。详细命令和判断规则见 [版本审计](./upstream-version-audit.zh-CN.md)。
+
+### 3.19 上游 Basic Auth 与 PWA 应用登录叠加
+
+- 症状：页面先出现浏览器原生密码框，进入应用后又要求 `/login`；API/SSE 在某一层过期时只表现为 401、断流或无法恢复。
+- 根因：v0.8.5 的 `PI_WEB_PASSWORD` 面向简单部署，Later 的 `PI_WEB_AUTH_*` 面向多账号 installed PWA；叠加会产生两套互不理解的认证状态。
+- 修复：代理检测到两种配置同时存在就 fail closed `503`。正式 Mac/Pop!_OS/PWA 继续只用应用登录；Basic Auth 仅保留为上游兼容的简单非 PWA 模式。
+- 自动化验证：覆盖正确/错误 Basic header、WWW-Authenticate、静态资源边界、两模式互斥、PWA public path 与签名 Cookie。
+- 防复发：部署配置只能选择一种认证模式；Nginx 不再额外叠加 `auth_basic`。
 
 ## 4. 新案例模板
 

@@ -1,0 +1,73 @@
+# Pi Web 与 Pi 上游版本审计
+
+## 目的
+
+这个项目同时依赖 3 个身份不同的仓库或发布源，检查和升级必须分开：
+
+| 对象 | 权威来源 | 本项目如何使用 | 触发动作 |
+|---|---|---|---|
+| Later Pi Web | 私有 `origin` | 自研长期分支、部署来源 | 保存、推送、部署 |
+| Pi Web 主仓 | [`agegr/pi-web`](https://github.com/agegr/pi-web) 的 `upstream/main` 与 release | Web 应用基础 | 评估后人工 merge |
+| 官方 Pi | [`earendil-works/pi`](https://github.com/earendil-works/pi) 与 npm 的 `@earendil-works/pi-*` | Agent、模型、TUI SDK | 稳定版发布后单独兼容性升级 |
+
+`Pi Web 有更新` 不代表 `Pi 有更新`；Pi 源码 `main` 有新提交也不代表 npm 已发布可升级版本。
+
+## 2026-07-31 已验证基线
+
+| 项目 | 稳定基线 | 判断 |
+|---|---|---|
+| Pi Web | `v0.8.5` / `cbb080d` | 已合入 Later 分支 |
+| Pi npm packages | `0.83.0` | 4 个直接依赖均已是 npm latest |
+| Pi source `main` | 比 `v0.83.0` 多 38 个未发布提交 | 只作为前瞻研究，不进入本次部署 |
+
+本次 Pi Web v0.8.5 从 v0.8.4 增加 6 个提交，主要内容是：可见模型 pattern、模型配置原子写入、OAuth 与 API-key Provider 双清单、可选的单密码 Basic Auth、俄语 README 和版本发布。Pi 本身没有新的稳定版，因此这次只升级 Pi Web，继续固定 4 个 `@earendil-works/pi-*` 依赖为 `0.83.0`。
+
+## v0.8.5 冲突决策
+
+| 冲突区域 | 上游价值 | Later 必须保留 | 合并结果 |
+|---|---|---|---|
+| `app/api/agent/new/route.ts` | 创建 Session 时原子选择模型范围 | 登录账号 audience 与扩展过滤 | 两类约束都在 Session 启动前生效 |
+| `lib/rpc-manager.ts` | visible/enabled model scope | Session 级 extension allow-list | 启动参数组合，不用整文件 ours/theirs |
+| `lib/web-auth.ts`、`proxy.ts` | 简单部署的 `PI_WEB_PASSWORD` Basic Auth、页面 Host 校验 | PWA `/login`、多账号签名 Cookie、过期恢复 | 两种认证模式互斥；公网生产继续使用应用登录 |
+| `package.json` 与 lockfiles | `0.8.5`、`proper-lockfile` | mobile build、Push、设备 UI 依赖 | 从组合后的 manifest 重新生成锁文件 |
+| README 与 `AGENTS.md` | 新上游能力说明 | Later PWA/部署不变量 | 明确 Basic Auth 不适用于正式 installed PWA |
+
+Basic Auth 与应用登录不能叠加。两者同时配置时代理返回 `503`，避免浏览器原生认证、应用 Cookie、API/SSE 过期恢复形成两层状态机。Later 的 Mac、Pop!_OS 与公网 PWA 使用 `PI_WEB_AUTH_*`，不配置 `PI_WEB_PASSWORD`。
+
+## 日常检查
+
+```bash
+./scripts/check-upstream.sh
+```
+
+脚本会做两件只读检查：
+
+1. fetch `upstream/main`，报告 Pi Web 两边 commit 数和待评估日志；
+2. 用 `npm view` 比较项目固定的 4 个 Pi package 与 npm 稳定最新版。
+
+它不会切分支、修改 manifest/lockfile、自动 merge 或自动升级。离线环境可临时设置 `PI_WEB_CHECK_PI_PACKAGES=0`，但下次联网工作仍要补查。
+
+需要人工深入 Pi 源码时使用：
+
+```bash
+gh api repos/earendil-works/pi/releases/latest
+gh api repos/earendil-works/pi/compare/v0.83.0...main
+```
+
+只有 npm/release 出现新稳定版本才进入升级评估。`main` 上的未发布修改只用来提前识别协议、finish reason、shutdown、模型错误或 package manifest 等潜在兼容风险，不能直接把本项目依赖改成未知 commit。
+
+## 升级与部署门槛
+
+1. Pi Web merge 与 Pi SDK 升级拆成两个可回滚变更；不要同时改变两条版本线后再定位问题。
+2. merge 前保存脏工作树并确认 `origin` 仍为 private；冲突按不变量组合。
+3. 通过 TypeScript、ESLint、全量 Node tests、移动 UI 静态验证和认证专项测试。
+4. 从一个已推送的精确 commit 构建 production artifact。
+5. 读取 `ops/device-inventory.json`；所有实际安装 Pi Web 的设备必须部署同一代码 commit。只运行 Nginx/Cloudflare 的网关不伪装成 Pi Web 应用节点，只验证路由与健康。
+6. 更新 `PROJECT_STATE.md`，记录上游 commit/tag、merge commit、测试数量、两端 build id、回滚目录和剩余风险，不记录密码、Token、Cookie 或私钥。
+
+## 以后如何避免重复调查
+
+- 先运行脚本，不再分别凭记忆搜索两个项目。
+- 看见 Pi `main` ahead 时先确认 release/npm；没有稳定发布就记录类别，不升级。
+- 新 Pi Web release 先按 changed files 与 Later 热区求交集，优先审计认证、模型、Session 生命周期、PWA/SW、依赖锁与部署脚本。
+- 每次出现可复用的冲突或生产故障，都把“症状、根因、证据、修复、不变量、自动化验证”追加到维护案例库。

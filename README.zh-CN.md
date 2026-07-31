@@ -1,6 +1,6 @@
 # Pi Web
 
-[English](./README.md) | [日本語](./README.ja.md)
+[English](./README.md) | [日本語](./README.ja.md) | [Русский](./README.ru.md)
 
 [pi 编程智能体](https://github.com/badlogic/pi-mono) 的本地网页界面。它会读取本机的 pi 会话文件，在浏览器里提供会话管理、实时对话、模型配置、技能管理和项目文件预览。
 
@@ -36,6 +36,7 @@ pi-web --no-open                # 不自动打开浏览器
 PORT=8080 pi-web                # 也支持环境变量
 PI_WEB_HOSTNAME=0.0.0.0 pi-web  # 显式开放网络访问
 PI_WEB_ALLOWED_HOSTS=pi-web.internal pi-web  # 允许指定的代理或自定义主机名
+PI_WEB_PASSWORD='足够长的随机密码' pi-web  # 启用 Basic Auth（用户名固定为 pi）
 PI_WEB_NO_OPEN=1 pi-web         # 适用于后台服务或开机自启
 
 # 在可信 HTTPS 反向代理后启用独立登录页（多账号）：
@@ -47,6 +48,11 @@ pi-web
 ```
 
 账号文件使用 `{"credentials":[{"username":"用户名","password":"密码"}]}` 格式，建议权限设为 `600`。也兼容原有的 `PI_WEB_AUTH_USERNAME` + `PI_WEB_AUTH_PASSWORD_FILE` 单账号配置，但不能与多账号文件同时使用。只要配置了认证相关设置，应用层身份验证就会启用。启用后，`/login` 会签发绑定到具体账号的带签名 HttpOnly 会话 Cookie；公网部署应设置 `PI_WEB_AUTH_REQUIRED=1`，确保凭据缺失时拒绝访问，不会静默裸奔。Pi Web 可以调用高权限智能体，请勿通过明文 HTTP 或不可信反向代理暴露到互联网。
+
+设置 `PI_WEB_PASSWORD` 后，网页和所有 API 端点都会启用 HTTP Basic Auth，用户名固定为 `pi`。未设置或设置为空值时不启用认证。
+
+Pi Web 可以调用高权限智能体。Basic Auth 不会加密传输中的密码，因此不要把明文 HTTP 暴露到互联网。远程访问时应使用可信反向代理提供 HTTPS，或通过可信 VPN 访问。
+`PI_WEB_PASSWORD` 与 `PI_WEB_AUTH_*` 应用登录配置互斥；同时配置时会拒绝启动访问流程并返回 `503`，不会叠加两套认证。安装到主屏幕的 PWA 应使用应用登录，因为原生 Basic Auth 弹窗在该场景下不可靠。
 API 请求仅接受 loopback 名称、IP 字面量、当前监听主机名，以及 `PI_WEB_ALLOWED_HOSTS` 中以逗号分隔的精确主机名。可信反向代理使用不同的外部主机名时，请配置该变量。
 
 ### 仓库部署：启动手机公网服务

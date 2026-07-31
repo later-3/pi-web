@@ -47,8 +47,9 @@
 | `PI_WEB_AUTH_SESSION_SECRET_FILE` | 独立随机文件、权限 `600` | Cookie 签名密钥；不能与登录密码共用 |
 | `PI_WEB_AUTH_SESSION_DAYS` | 默认值或明确整数 | 持久登录有效天数 |
 | `PI_WEB_AUTH_USERNAME` + `PI_WEB_AUTH_PASSWORD_FILE` | 仅旧部署兼容 | 单账号旧方式；不得与 credentials file 同时启用 |
+| `PI_WEB_PASSWORD` | 仅简单非 PWA 部署 | 上游兼容的单密码 Basic Auth；不得与任何 `PI_WEB_AUTH_*` 同时启用 |
 
-规则：账号文件、签名密钥、Provider Token、OAuth 凭据、`.env*` 和 `deploy/secrets/` 永不提交。密码轮换会使对应账号旧 Cookie 失效，这是预期行为。
+规则：Mac、Pop!_OS 与公网 installed PWA 使用 `PI_WEB_AUTH_*` 应用登录，不配置 `PI_WEB_PASSWORD`。账号文件、签名密钥、Provider Token、OAuth 凭据、`.env*` 和 `deploy/secrets/` 永不提交。密码轮换会使对应账号旧 Cookie 失效，这是预期行为。
 
 ### Web Push
 
@@ -76,12 +77,14 @@ Push 内容只使用有界预览和 Session 深链，不发送完整对话。HTT
 11. gateway 模式切换不得调用 `window.location.reload/assign`；旧工作区必须先 unmount 完成连接清理，再修改路由 Cookie。目标探针失败要回滚原设备，切换成功只替换带 epoch key 的 React 工作区。
 12. 每台设备的最后 Session/cwd、文件页签和右侧面板只存于当前浏览器的有界 `sessionStorage` 快照；解析时必须丢弃损坏或越界数据，不能把设备状态混写到另一台设备。
 13. 手机设备入口属于一级导航：主界面点设备胶囊、设备面板点目标机器共 2 次点击。不得重新塞回“更多”菜单或叠加第二层下拉；切换提交前必须显示目标行忙碌状态，当前设备不可重复选择。
+14. `PI_WEB_PASSWORD` Basic Auth 与 `PI_WEB_AUTH_*` 应用登录互斥；两者同时存在必须 fail closed。公网 installed PWA 始终选择应用登录，避免原生认证框与 API/SSE 恢复冲突。
 
 ## 文档导航
 
 - Mac + 手机现有环境：[Pi Web 启动与手机服务器操作手册](./pi-web-service.zh-CN.md)
 - 通用 Linux 新部署：[Linux 部署手册](./linux-deployment.zh-CN.md)
 - 上游同步、提交和案例库：[维护与故障案例手册](./maintenance-playbook.zh-CN.md)
+- Pi Web/Pi 两条发布线：[上游版本审计](./upstream-version-audit.zh-CN.md)
 - PWA 安装：[PWA 指南](./PWA.md)
 - Session/模型使用：[Pi Agent 手册](./pi-agent-model-usage.zh-CN.md) 与 [Codex 手册](./codex-session-model-usage.zh-CN.md)
 - 多设备：[多设备接入架构 ADR](./multi-device-architecture.zh-CN.md)
