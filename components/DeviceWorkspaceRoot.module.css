@@ -6,7 +6,8 @@
 }
 
 .switchScreen,
-.loadingShield {
+.loadingShield,
+.offlineScreen {
   position: absolute;
   inset: 0;
   z-index: 500;
@@ -16,6 +17,11 @@
 }
 
 .switchScreen {
+  background: var(--bg);
+}
+
+.offlineScreen {
+  padding: max(20px, var(--safe-area-top)) max(18px, var(--safe-area-right)) max(20px, var(--safe-area-bottom)) max(18px, var(--safe-area-left));
   background: var(--bg);
 }
 
@@ -116,6 +122,92 @@
   background: var(--bg-hover);
   color: var(--text);
   cursor: pointer;
+}
+
+.offlineCard {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  width: min(520px, 100%);
+  padding: clamp(24px, 7vw, 40px);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+  text-align: center;
+}
+
+.offlineIcon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  color: #f59e0b;
+  background: color-mix(in srgb, #f59e0b 14%, transparent);
+}
+
+.offlineCopy {
+  display: grid;
+  gap: 8px;
+}
+
+.offlineCopy h1,
+.offlineCopy p,
+.offlineHint {
+  margin: 0;
+}
+
+.offlineCopy h1 {
+  font-size: clamp(20px, 5vw, 26px);
+  line-height: 1.2;
+}
+
+.offlineCopy p,
+.offlineHint {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.offlineCopy p {
+  font-size: 14px;
+}
+
+.offlineActions {
+  display: grid;
+  gap: 10px;
+  width: min(320px, 100%);
+}
+
+.offlineActions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primaryAction {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.secondaryAction {
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.offlineHint {
+  font-size: 12px;
 }
 
 @keyframes device-workspace-spin {

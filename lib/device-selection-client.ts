@@ -11,6 +11,68 @@ interface SelectGatewayDeviceOptions {
   fetchFn?: FetchLike;
   timeoutMs?: number;
 }
+
+export class DeviceUnavailableError extends Error {
+  readonly deviceId: string;
+  readonly status: number | null;
+
+  constructor(deviceId: string, status: number | null, message = "Selected device is offline") {
+    super(message);
+    this.name = "DeviceUnavailableError";
+    this.deviceId = deviceId;
+    this.status = status;
+  }
+}
+
+export async function probeSelectedGatewayDevice(
+  deviceId: string,
+  {
+    fetchFn = fetch,
+    timeoutMs = DEVICE_SELECTION_TIMEOUT_MS,
+  }: SelectGatewayDeviceOptions = {},
+): Promise<void> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetchFn("/api/health", {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal: controller.signal,
+    });
+    const routedDeviceId = response.headers.get("X-Pi-Web-Device");
+    if (response.ok) {
+      if (routedDeviceId && routedDeviceId !== deviceId) {
+        throw new Error("Gateway routed the health probe to the wrong device");
+      }
+      return;
+    }
+
+    const payload = await response.json().catch(() => null) as {
+      error?: unknown;
+      deviceId?: unknown;
+      message?: unknown;
+    } | null;
+    const isOffline = response.status === 502
+      || response.status === 503
+      || response.status === 504
+      || payload?.error === "device_offline";
+    if (isOffline) {
+      const offlineDeviceId = typeof payload?.deviceId === "string" ? payload.deviceId : deviceId;
+      const message = typeof payload?.message === "string" ? payload.message : "Selected device is offline";
+      throw new DeviceUnavailableError(offlineDeviceId, response.status, message);
+    }
+    throw new Error(`Selected device health check failed (${response.status})`);
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new DeviceUnavailableError(deviceId, null, "Selected device connection timed out");
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+}
+
 export async function selectGatewayDevice(
   deviceId: string,
   {
@@ -82,6 +144,7 @@ export async function loadSelectedGatewayDevice(
     if (routedDeviceId && routedDeviceId !== deviceId) {
       throw new Error("Gateway routed the request to the wrong device");
     }
+    await probeSelectedGatewayDevice(deviceId, { fetchFn, timeoutMs });
     return payload;
   } catch (error) {
     if (controller.signal.aborted) throw new Error("Selected device connection timed out");

@@ -36,3 +36,11 @@ test("persists per-device navigation and file state", () => {
   assert.match(source, /loadDeviceWorkspaceSnapshot\(window\.sessionStorage, device\.id\)/);
   assert.match(source, /navigationFromSearch\(window\.location\.search\)/);
 });
+
+test("keeps an offline selected device out of the workspace and offers explicit recovery", () => {
+  assert.match(rootSource, /deviceDirectory\.offlineDeviceId === workspace\.currentDeviceId/);
+  assert.match(rootSource, /devices\.offlineTitle/);
+  assert.match(rootSource, /workspace\.switchDevice\(device\)/);
+  assert.match(rootSource, /deviceDirectory\.retry/);
+  assert.match(rootSource, /!deviceOffline && !switching/);
+});

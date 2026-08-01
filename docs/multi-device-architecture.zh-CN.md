@@ -1,6 +1,6 @@
 # Pi Web 多设备接入架构 ADR
 
-> 状态：同源粘性网关核心已部署（2026-07-30）
+> 状态：同源粘性网关与离线故障转移已部署（2026-08-01）
 >
 > 原则：手机只感知一个用户、一个 URL、一个登录和一个 Pi Web；设备是当前终端里的执行位置，不是另一套管理界面。
 
@@ -24,7 +24,7 @@
 3. UI 在同一个 origin 内显示并切换执行设备，用户不离开当前 PWA/界面，也不再次登录。
 4. 配置错误只关闭多设备入口，不影响当前设备的 Session/Chat。
 5. 核心解析、文件加载、UI 和 API 分层，具备独立测试。
-6. 设备数据 API、SSE 和文件请求在一个工作区 epoch 内粘性到同一设备；页面壳、静态资源、认证和选择控制面固定到主设备。
+6. 设备数据 API、SSE 和文件请求在一个工作区 epoch 内粘性到同一设备；页面壳、静态资源、认证和选择控制面在兼容设备间故障转移。
 7. gateway 模式在同一 document 内替换 React 工作区，不以整页刷新伪装成“统一界面”。
 
 ### 当前不做
@@ -124,12 +124,13 @@ Nginx 白名单粘性路由
        ├─ mac-main   ─▶ tunnel A ─▶ Mac Pi Web
        └─ linux-home ─▶ tunnel B ─▶ Linux Pi Web
 
-页面壳 / `_next/*` / 应用认证 ──────────▶ 固定 Mac 控制面
+页面壳 / `_next/*` / 应用认证 ──────────▶ Mac primary / Linux backup 控制面
 
-POST /api/devices/select ───────────────▶ 固定 Mac 控制面
+GET /api/devices + POST /api/devices/select ─▶ 同一故障转移控制面
        └─ 校验 Origin/JSON/known id，写 HttpOnly Cookie
 
 React DeviceWorkspaceRoot
+       ├─ 启动/每 5 秒探测所选设备；离线则显示恢复界面
        └─ unmount 旧工作区 → 选择设备 → 探针校验 → mount 目标工作区
 ```
 
@@ -138,13 +139,15 @@ React DeviceWorkspaceRoot
 已落地的不变量：
 
 1. `pi_web_device` 不承载身份或秘密，只接受 Nginx 静态白名单中的 id；未知值默认到主设备。
-2. `POST /api/devices/select` 固定路由到主设备；目标在已加载页面期间离线时仍可回切。若带着离线目标偏好冷启动，当前需清除站点设备偏好，专用无依赖恢复页是后续增强。
+2. `/api/devices`、`POST /api/devices/select`、页面壳与登录使用 Mac primary / Linux backup；所选设备离线不影响控制面，冷启动无需清除 Cookie。
 3. gateway 模式不导航、不 reload：`DeviceWorkspaceRoot` 先进入 switching phase 并 unmount 旧 `AppShell`，等待 effect cleanup 后再调用选择 API；目标 `/api/devices` 必须同时通过 payload 与 `X-Pi-Web-Device` 校验，随后用递增 epoch key 挂载新工作区。旧设备 Agent 不被 abort。
 4. 应用登录 Cookie 是同一 origin 的 host-only Cookie；网关成员用同一签名密钥验证，不设置父域 Cookie。
 5. 设备物理 URL 不返回给 gateway 模式 UI，不参与正常导航。
 6. 目标不可达、响应错路由或超时会把设备偏好回滚到原设备并恢复其工作区快照；不能让失败选择把页面留在半切换状态。
 7. 每台设备最后的 Session/cwd、文件页签与面板状态保存为有界、可校验的 `sessionStorage` 快照；跨设备不共享运行中 React 状态。
 8. 支持同文档 View Transition 且用户未开启 reduced motion 时，异步切换期间保留真实旧工作区快照，目标 React 工作区同步挂载后再原位替换；侧栏数据 ready 继续由独立 loading gate 管理。不支持时使用明确的连接状态，不伪造内容骨架。
+9. 执行面不做跨设备自动 failover。`/api/health` 的连接级 `502/504` 由网关转换成带设备 id 的结构化 `503 device_offline`；UI 不挂载离线工作区，用户显式选择在线设备后才改变 Cookie。
+10. 全部成员离线时，云端 Nginx 直接返回无后端依赖的恢复页；不得把 Cloudflare 通用 502 当产品离线页。
 
 后续增强另行设计：设备 registry/heartbeat/health cache、中央 Push broker、动态授权与网关高可用。若未来采用 Cloudflare Access，origin 必须验证 `Cf-Access-Jwt-Assertion`，不能仅信任 Cookie。[Cloudflare JWT validation](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)
 
@@ -157,7 +160,7 @@ app/api/devices/route.ts      薄 HTTP adapter；no-store；不暴露文件路�
 app/api/devices/select/route.ts 受保护的设备选择控制面与 Cookie 写入
 lib/device-selection*.ts      Cookie/请求边界与带超时客户端
 lib/device-workspace.ts       每设备有界工作区快照、导航恢复与清洗
-hooks/useDeviceDirectory.ts   一次性加载、AbortController 与超时
+hooks/useDeviceDirectory.ts   故障转移目录、所选设备轮询、离线状态与重试
 hooks/useDeviceWorkspace.ts   切换事务、回滚、ready gate 与 View Transition
 components/DeviceSwitcher.tsx 独立交互组件；不承载配置解析
 components/DeviceWorkspaceRoot.tsx 带 epoch key 的工作区边界与状态展示
@@ -173,9 +176,9 @@ deploy/devices.example.json   非敏感示例
 | 项目 | 一期约束 | 失败行为 |
 |---|---|---|
 | 配置文件 | 最大 64 KiB、最多 32 台设备 | 超限/损坏条目跳过并返回 diagnostic |
-| `/api/devices` | 页面挂载加载一次，不轮询 | 3 秒超时后隐藏切换器，不影响 Chat |
+| `/api/devices` | 页面挂载/切换后加载 | 3 秒超时后保留入口错误，不把离线设备挂载为工作区 |
 | 文件 IO | path + mtime + size cache | 文件变化后下次请求重新解析 |
-| 远端健康 | 当前不主动逐台探测 | 避免首屏串行等待和 N×M 探测风暴 |
+| 远端健康 | 只探测当前选择，5 秒轮询；不逐台探测 | 当前设备离线显示恢复页，避免 N×M 探测风暴 |
 | 设备切换 | POST + 目标探针各自有界；目标侧栏 ready 最多等待 6 秒 | 超时/错路由回滚原设备并显示错误；不逐台预连 |
 | 当前设备 | 配置不存在时自动注入本机 | 永远保留可用当前设备 |
 | SSE | workspace unmount 触发已有 effect cleanup | 原设备任务继续；旧客户端连接在 Cookie 改变前关闭 |
@@ -208,7 +211,7 @@ deploy/devices.example.json   非敏感示例
 - 组件单设备时隐藏、多设备时显示、当前项不可选、中文/英文文本；
 - 手机端设备胶囊位于一级导航，设备面板直接列出目标机器，2 次点击完成选择；验证 44px 触控目标、忙碌/失败反馈、Esc/焦点闭环；
 - 目录 fetch abort/timeout、选择请求 5 秒 timeout 和卸载后不 setState；
-- Nginx 已知设备映射、未知值回退和固定控制面；
+- Nginx 已知设备映射、未知值回退、控制面 primary/backup 和全离线恢复页；
 - 旧 workspace 在修改 Cookie 前 unmount，gateway 模式只替换 React epoch、不调用 document navigation；
 - 目标 payload/header 双重校验、失败回滚原设备、每设备工作区快照清洗与上限；
 - View Transition 支持分支与 reduced-motion 回退；
@@ -218,7 +221,8 @@ deploy/devices.example.json   非敏感示例
 
 - Safari tab 与 installed PWA 各连续往返切换，确认 URL、登录态和 document 不变，过程中不出现空白页；
 - 切到每台设备后恢复其最后 Session/cwd/文件页签，不串用另一设备路径；
-- 目标设备离线时的错误展示和回切主设备；
+- 目标设备离线时 root/directory 仍可用、health=`device_offline`，并可显式切到在线设备；
+- 分别断开 Mac/Linux 控制 relay，确认另一台兼容成员承接页面、登录、目录和选择；
 - 原设备 Agent 正在 streaming 时切换，确认任务未被错误 abort；
 - 切回后 reconciliation 恢复正确状态；
 - 两设备 Push 的已知一期限制有明确 UI/文档提示。

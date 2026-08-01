@@ -5,13 +5,14 @@
 手机只使用一个入口、一个登录和一个 Pi Web 界面：`https://pi.ai4child.asia`。默认执行设备是 Mac；在设备菜单选择 Pop!_OS 后，React 工作区会在同一 document/origin 内原位切到 Linux，不重载整页，也不会打开另一套管理界面。切换期间先关闭旧设备的页面连接，真实旧画面保留到目标工作区就绪；旧设备上已经运行的 Agent 不会被中止。
 
 ```bash
+./scripts/check-pi-web-cloud.sh
 ./scripts/manage-pi-web.sh start
 ./scripts/verify-mobile-relay.sh
 ```
 
 - 电脑访问：<http://127.0.0.1:30141>
 - 手机访问：<https://pi.ai4child.asia>
-- Mac 承担设备选择控制面，必须开机、联网并保持当前用户已登录；PWA 本身不提供离线后端。
+- 控制面优先由 Mac 承担，Mac 不可达时自动回退到兼容的 Linux；只要至少一台网关成员在线，入口、登录和设备选择都应可用。全部设备离线时由云端显示恢复页。
 
 ## 当前第二台设备
 
@@ -36,9 +37,10 @@
                                   Pi Web production
                                   127.0.0.1:30141
                                           ▲
-手机 ─▶ Cloudflare ─▶ 云端 Nginx :33042 ─┬─ 页面壳/静态/认证/选择 ─▶ :33041 ─▶ Mac
-                                           ├─ Cookie=mac-main 数据 ─▶ :33041 ─▶ Mac
-                                           └─ Cookie=linux-home 数据 ─▶ :33043 ─▶ Pop!_OS
+手机 ─▶ Cloudflare ─▶ 云端 Nginx :33042 ─┬─ 控制面 ─▶ :33041 Mac（primary）
+                                           │          └▶ :33043 Linux（backup）
+                                           ├─ Cookie=mac-main 执行面 ─▶ :33041 ─▶ Mac
+                                           └─ Cookie=linux-home 执行面 ─▶ :33043 ─▶ Pop!_OS
 ```
 
 Mac 上由 2 个 LaunchAgent 常驻运行：
@@ -48,7 +50,7 @@ Mac 上由 2 个 LaunchAgent 常驻运行：
 
 云服务器上还有 2 个 systemd 服务：
 
-1. `nginx`：在 `127.0.0.1:33042` 接收 Cloudflare 回源；页面壳、`/_next/*`、应用认证和 `/api/devices/select` 固定转给 Mac 控制面，设备数据 API/SSE 按白名单 Cookie 粘性转给 `33041` 或 `33043`；未知值回退 Mac。
+1. `nginx`：在 `127.0.0.1:33042` 接收 Cloudflare 回源；页面壳、`/_next/*`、应用认证、设备目录和选择接口通过 `33041 → 33043 backup` 故障转移，设备数据 API/SSE 仍按白名单 Cookie 粘性转给指定设备；离线只返回结构化状态，不静默换执行设备。
 2. `cloudflared`：承接 `pi.ai4child.asia` 的 HTTPS 流量并转给 Nginx。
 
 认证由 Pi Web 的 `/login` 和签名 HttpOnly Cookie 完成；设备偏好使用另一枚不含秘密的 HttpOnly Cookie。Nginx 不应启用浏览器原生 Basic Auth。
@@ -60,6 +62,9 @@ Mac 上由 2 个 LaunchAgent 常驻运行：
 > 请从独立的 macOS Terminal 执行 `stop` 或 `restart`。如果命令由正在被管理的 Pi Web 进程自身发起，`launchctl bootout` 会终止该进程树，命令无法在同一次调用中继续执行启动后半段。
 
 ```bash
+# 首选：只读检查 Mac、Linux、云端、4 个 loopback 端口和公网粘性路由
+./scripts/check-pi-web-cloud.sh
+
 # 查看两个进程、本机后端、云端隧道和手机公网，共 4 类状态
 ./scripts/manage-pi-web.sh status
 
@@ -157,6 +162,7 @@ production 使用 `.next-mobile/`，不会与开发服务器的 `.next/` 混用�
 
 | 文件 | 作用 | 运行位置 |
 |---|---|---|
+| `scripts/check-pi-web-cloud.sh` | 只读分层检查 Mac/Linux 双后端、云服务、端口和公网路由 | Mac 或已配置 device-access 的管理设备 |
 | `scripts/manage-pi-web.sh` | 日常 `status/start/stop/restart/logs`，并处理僵尸隧道 | Mac |
 | `scripts/install-mobile-relay.sh` | 构建、配置云端、安装 LaunchAgent | Mac |
 | `scripts/verify-mobile-relay.sh` | 验证本机、隧道、Nginx、登录和公网 | Mac |
@@ -172,9 +178,12 @@ production 使用 `.next-mobile/`，不会与开发服务器的 `.next/` 混用�
 先运行：
 
 ```bash
+./scripts/check-pi-web-cloud.sh
 ./scripts/manage-pi-web.sh status
 ./scripts/verify-mobile-relay.sh
 ```
+
+`check-pi-web-cloud.sh` 是首选定位入口；它覆盖现有 `verify-mobile-relay.sh` 未完整检查的 Linux `33043` 路径、systemd MainPID/listener/cgroup 一致性、云端 `33041–33044` owner/loopback 约束和公网设备 Cookie 路由。完整架构、部署记录、端口表、历史故障和逐层恢复命令见 [Pi Web 云端网关检查、部署与故障手册](./pi-web-cloud-operations.zh-CN.md)。
 
 按失败位置处理：
 
@@ -182,7 +191,7 @@ production 使用 `.next-mobile/`，不会与开发服务器的 `.next/` 混用�
 2. 本机正常但 `云端隧道检查` 失败：执行 `./scripts/manage-pi-web.sh restart`。脚本会先关闭当前隧道，并仅在确认 `33041` 的占用者是 `sshd` 时回收旧连接。
 3. 云端隧道正常但 `手机公网检查` 失败：检查云服务器的 Nginx 和 cloudflared。
 4. `/login` 能打开但登录失败：检查 `deploy/secrets/pi-web-auth-credentials.json`，权限必须是 `600`；不要把密码打印进日志或提交 Git。
-5. Linux 在页面已打开时掉线：设备菜单仍可调用固定在 Mac 的选择接口并切回。若刷新/冷启动后直接出现 `502`，说明 Linux 服务或 `33043` 隧道不可用；当前需清除 `pi.ai4child.asia` 的站点数据以恢复默认 Mac，后续补专用恢复页。
+5. Linux 掉线：冷启动和已打开页面都会显示“设备离线”，设备目录与选择接口继续由在线控制面提供；直接点“切换到 Main Mac”即可，不应再清除 Cookie 或站点数据。若仍见 Cloudflare 502，说明控制面所有成员或云端入口本身异常。
 6. 切换过程中出现整页白屏：先确认两台设备均为 `67effb8` 或更新版本，并检查浏览器是否命中旧 Service Worker 资源；刷新一次 PWA 后再复测。gateway 正常路径不应调用 document reload。
 
 云服务器只读检查命令：

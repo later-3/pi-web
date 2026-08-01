@@ -27,6 +27,7 @@ bash -n \
   "$REPO_ROOT/scripts/authorize-device-key.sh" \
   "$REPO_ROOT/scripts/revoke-device-key.sh" \
   "$REPO_ROOT/scripts/pin-device-host-key.sh" \
+  "$REPO_ROOT/scripts/check-pi-web-cloud.sh" \
   "$REPO_ROOT/deploy/device-access/install-cloud.sh"
 pass 'all device-access shell scripts parse'
 
@@ -150,7 +151,8 @@ pass 'run preserves remote argument boundaries and nested shell commands'
 
 for markdown_file in \
   "$REPO_ROOT/docs/device-access.zh-CN.md" \
-  "$REPO_ROOT/docs/device-onboarding.zh-CN.md"; do
+  "$REPO_ROOT/docs/device-onboarding.zh-CN.md" \
+  "$REPO_ROOT/docs/pi-web-cloud-operations.zh-CN.md"; do
   while IFS= read -r relative_link; do
     link_without_fragment="${relative_link%%#*}"
     [ -e "$(dirname "$markdown_file")/$link_without_fragment" ] || {
