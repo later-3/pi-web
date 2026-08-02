@@ -4,12 +4,20 @@ import {
 } from "./device-directory-core";
 
 export const DEVICE_SELECTION_TIMEOUT_MS = 5_000;
+export const DEVICE_CONFIRMATION_ATTEMPTS = 3;
+export const DEVICE_CONFIRMATION_PROBE_TIMEOUT_MS = 1_200;
+export const DEVICE_CONFIRMATION_RETRY_MS = 400;
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 interface SelectGatewayDeviceOptions {
   fetchFn?: FetchLike;
   timeoutMs?: number;
+}
+
+interface ConfirmGatewayDeviceOptions extends SelectGatewayDeviceOptions {
+  attempts?: number;
+  retryDelayMs?: number;
 }
 
 export class DeviceUnavailableError extends Error {
@@ -71,6 +79,35 @@ export async function probeSelectedGatewayDevice(
   } finally {
     globalThis.clearTimeout(timeout);
   }
+}
+
+export async function confirmSelectedGatewayDevice(
+  deviceId: string,
+  {
+    fetchFn = fetch,
+    timeoutMs = DEVICE_CONFIRMATION_PROBE_TIMEOUT_MS,
+    attempts = DEVICE_CONFIRMATION_ATTEMPTS,
+    retryDelayMs = DEVICE_CONFIRMATION_RETRY_MS,
+  }: ConfirmGatewayDeviceOptions = {},
+): Promise<void> {
+  const boundedAttempts = Math.max(1, Math.floor(attempts));
+  let lastUnavailableError: DeviceUnavailableError | null = null;
+
+  for (let attempt = 1; attempt <= boundedAttempts; attempt += 1) {
+    try {
+      await probeSelectedGatewayDevice(deviceId, { fetchFn, timeoutMs });
+      return;
+    } catch (error) {
+      if (!(error instanceof DeviceUnavailableError)) throw error;
+      lastUnavailableError = error;
+    }
+
+    if (attempt < boundedAttempts && retryDelayMs > 0) {
+      await new Promise<void>((resolve) => globalThis.setTimeout(resolve, retryDelayMs));
+    }
+  }
+
+  throw lastUnavailableError ?? new DeviceUnavailableError(deviceId, null);
 }
 
 export async function selectGatewayDevice(
@@ -144,7 +181,11 @@ export async function loadSelectedGatewayDevice(
     if (routedDeviceId && routedDeviceId !== deviceId) {
       throw new Error("Gateway routed the request to the wrong device");
     }
-    await probeSelectedGatewayDevice(deviceId, { fetchFn, timeoutMs });
+    globalThis.clearTimeout(timeout);
+    await confirmSelectedGatewayDevice(deviceId, {
+      fetchFn,
+      timeoutMs: Math.min(timeoutMs, DEVICE_CONFIRMATION_PROBE_TIMEOUT_MS),
+    });
     return payload;
   } catch (error) {
     if (controller.signal.aborted) throw new Error("Selected device connection timed out");

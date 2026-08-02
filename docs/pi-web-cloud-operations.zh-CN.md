@@ -62,6 +62,12 @@
 
 本次 `linux-home` 的 `33043`、管理 relay `33102` 和 LAN 地址同时不可达，但 Mac `30141/33041` 与云端正常。旧设计仍让 `/api/devices` 和 health 跟随 Linux Cookie，导致原始 502 穿透到 PWA。现已修复为：控制面 `33041 primary → 33043 backup`、所选设备 health 结构化 `503 device_offline`、前端离线页显式切换、所有设备离线时云端本地恢复页。不得再以清 Cookie 作为正常恢复手段。
 
+### 2.2 2026-08-02 在线设备短暂闪现离线
+
+前端原机制是启动时探测 1 次，随后每 5 秒探测当前设备；任何单次 `502/503/504` 或探针超时都会立刻显示离线，下一次成功又立刻恢复。因此云端连接抖动、旧 relay 短暂停顿或一次超时会造成“使用中突然离线又连上”，不能据此证明设备真的掉线。
+
+现机制保留每 5 秒采样，但用迟滞状态机隔离瞬时故障：运行中必须连续失败至少 3 次，且第一次到最后一次失败相隔至少 8 秒，才显示设备离线；任意一次成功会清空未确认的失败序列。确认离线后必须连续成功 2 次才恢复。冷启动独立使用最多 3 次、单次 1.2 秒、间隔 400ms 的短探针，既不因第一个失败误报，也不让真实离线等待完整运行态窗口。阈值集中在 `lib/device-availability.ts`，行为由纯函数测试锁定。
+
 ## 3. 实际部署架构
 
 ```text
@@ -259,6 +265,7 @@ KillMode=mixed
 | 云端残留旧 reverse listener | `33041` 看似 LISTEN，但 health 超时；新 SSH 报 forward failure | Mac 休眠/网络切换后旧 server-side `sshd` 停在半关闭状态 | `manage-pi-web.sh start/restart` 只在 owner=`sshd` 时回收专用端口 |
 | Linux npm wrapper 留下孤儿 Next | health 仍绿，但 systemd `activating (auto-restart)`、新进程 `EADDRINUSE` | `npm → shell → next-server` 信号/进程归属错误 | systemd 直接管理 Node/Next，`KillMode=mixed`；验收 MainPID/listener/cgroup |
 | Linux 粘性后端离线 | 旧版出现 Cloudflare `502` | 目录和 health 误跟随离线 Cookie，前端没有离线状态 | 控制面跨设备 failover；health=`503 device_offline`；离线页一键切设备，不清 Cookie |
+| 在线设备离线提示闪烁 | 使用中突然显示离线，随后约 5 秒恢复 | 旧前端把一个健康样本直接映射为 UI 状态，没有失败/恢复迟滞 | 3 次连续失败且跨度 ≥8 秒才离线；2 次连续成功才恢复；冷启动 3 次短确认 |
 | 两端版本或签名密钥不一致 | 切换设备后 `401`、资源错配或白屏 | 同源 gateway 成员没有兼容 build 或共享认证材料 | 同 commit 构建、共享账号/签名密钥、部署后双 Cookie 路由验收 |
 | 误用 Nginx Basic Auth | iOS PWA 原生弹框、无法恢复登录 | 浏览器原生 Basic Auth 与 installed PWA 不兼容 | 只用应用 `/login` + HttpOnly 签名 Cookie；Nginx 禁止 `auth_basic` |
 

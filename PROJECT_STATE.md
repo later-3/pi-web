@@ -13,7 +13,7 @@
 | 上游合并提交 | `422194f` |
 | Pi SDK | `0.83.0` |
 | Node.js 下限 | `22.19.0` |
-| 当前验证 | TypeScript、ESLint、`308/308` Node tests、移动 UI 静态检查通过；公网登录、结构化设备离线、`linux-home offline → mac-main` 无清 Cookie 恢复与两端模型 API 通过 |
+| 当前验证 | TypeScript、ESLint、`316/316` Node tests、移动 UI 静态检查通过；公网登录、迟滞设备判定、结构化设备离线、`linux-home offline → mac-main` 无清 Cookie 恢复与两端模型 API 通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
 
 ## 当前自研能力
@@ -74,7 +74,7 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 
 ### P4：同源无刷新双设备闭环已完成，运行态仍需真机持续验收
 
-[多设备 ADR](./docs/multi-device-architecture.zh-CN.md) 的同源入口、设备选择 API、HttpOnly 路由 Cookie、Nginx 白名单粘性路由、共享应用登录和两台真实设备已完成服务端与 390×844 浏览器验收。切换不再重载 document；旧设备 EventSource/fetch 通过 React unmount 清理，路由探针失败会回滚原设备，目标设备恢复自己的工作区快照。2026-08-01 已补控制面跨设备故障转移、结构化离线响应和一键切换在线设备；Mac 已部署，Linux 当前离线，恢复后仍需部署同一兼容 build 并完成反向故障转移真机验收。手机交互审计见 [移动端 UX 审计](./docs/mobile-ux-audit-2026-07-30.zh-CN.md)。
+[多设备 ADR](./docs/multi-device-architecture.zh-CN.md) 的同源入口、设备选择 API、HttpOnly 路由 Cookie、Nginx 白名单粘性路由、共享应用登录和两台真实设备已完成服务端与 390×844 浏览器验收。切换不再重载 document；旧设备 EventSource/fetch 通过 React unmount 清理，路由探针失败会回滚原设备，目标设备恢复自己的工作区快照。2026-08-01 已补控制面跨设备故障转移、结构化离线响应和一键切换在线设备；2026-08-02 又把单样本在线状态改为失败/恢复迟滞，Mac 已部署。Linux 当前离线，恢复后仍需部署同一兼容 build 并完成反向故障转移真机验收。手机交互审计见 [移动端 UX 审计](./docs/mobile-ux-audit-2026-07-30.zh-CN.md)。
 
 ### P5：Linux 活跃 Session 后的优雅重启需要补强
 
@@ -123,6 +123,14 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 5. 生产部署：Mac build id `IdYqtapIsO7Tj9UJxqmMr`，旧产物备份 `.next-mobile-backup-pre-device-failover-20260801T064857Z`；云端 Nginx release `20260801T065252Z`。陈旧 `33041` sshd listener 已定向回收，新 `com.later.pi-web.cloud-relay` 为 `runs=1`、当前进程持有。
 6. 真实验收：保留 Linux Cookie 的已登录公网请求得到 root `200`、directory `200/current=linux-home`、health `503/device_offline`；选择 Mac 返回 `200`，随后 Mac health `200`。TypeScript、ESLint、Nginx parser 和显式 `.test.mjs` `308/308` 通过。
 7. 待办：Linux 仍物理离线，当前保留上一 build。恢复联网后必须部署同一兼容版本，再做 `Mac offline → Linux control plane → 显示/切换` 的对称真机验收。
+
+## 2026-08-02 设备离线判定去抖
+
+1. 根因：原前端启动只探测 1 次，运行中每 5 秒探测 1 次；任意单次 `502/503/504` 或探针超时立即显示离线，下一次成功又立即恢复。它把一次连接抖动直接映射为用户可见状态，并不能证明 Mac 真正离线。
+2. 机制：新增纯函数迟滞状态机。运行中保留 5 秒采样，但必须 3 次连续失败且首尾跨度至少 8 秒才确认离线；任意成功清空尚未确认的失败序列。确认离线后需要 2 次连续成功才恢复。冷启动使用最多 3 次、单次 1.2 秒、间隔 400ms 的短探针确认。
+3. 生产部署：Mac build id `1_SQOzCGm7VQ1JzKEHqWa`，旧 build `IdYqtapIsO7Tj9UJxqmMr` 保存在 `.next-mobile-backup-pre-device-hysteresis-20260802T004539Z`；LaunchAgent 新进程 PID `55590`、`runs=1`，`30141` listener 与 PID 一致。云端 Nginx 配置没有变化。
+4. 验证证据：TypeScript、ESLint 与显式 `.test.mjs` `316/316` 通过；候选构建先在 `30142` 完成登录、目录、运行任务和 health 验证，确认正式服务运行任务为 0 后原子切换。公网默认/Mac health=`200 online`；保留 Linux Cookie 时 root=`200`、directory=`200/current=linux-home`、health=`503 device_offline`、选择 Mac=`200`。
+5. 当前外部状态：`linux-home` 仍物理离线，因此全链路脚本的 4 个失败均对应 Linux 管理/HTTP relay 与直连；Mac、云端 Nginx、cloudflared、控制面和公网 Mac 路由均通过。Linux 恢复后仍需部署兼容 build。
 
 ## 下一次更新本文件时至少记录
 

@@ -130,7 +130,8 @@ GET /api/devices + POST /api/devices/select ─▶ 同一故障转移控制面
        └─ 校验 Origin/JSON/known id，写 HttpOnly Cookie
 
 React DeviceWorkspaceRoot
-       ├─ 启动/每 5 秒探测所选设备；离线则显示恢复界面
+       ├─ 启动时 3 次短探针确认；运行中每 5 秒采样并迟滞判定
+       │    └─ 3 次连续失败且跨度 ≥8 秒才离线；2 次连续成功才恢复
        └─ unmount 旧工作区 → 选择设备 → 探针校验 → mount 目标工作区
 ```
 
@@ -148,6 +149,7 @@ React DeviceWorkspaceRoot
 8. 支持同文档 View Transition 且用户未开启 reduced motion 时，异步切换期间保留真实旧工作区快照，目标 React 工作区同步挂载后再原位替换；侧栏数据 ready 继续由独立 loading gate 管理。不支持时使用明确的连接状态，不伪造内容骨架。
 9. 执行面不做跨设备自动 failover。`/api/health` 的连接级 `502/504` 由网关转换成带设备 id 的结构化 `503 device_offline`；UI 不挂载离线工作区，用户显式选择在线设备后才改变 Cookie。
 10. 全部成员离线时，云端 Nginx 直接返回无后端依赖的恢复页；不得把 Cloudflare 通用 502 当产品离线页。
+11. 设备在线状态不能由单个样本翻转：冷启动最多做 3 次、单次 1.2 秒的短探针，间隔 400ms；已挂载页面每 5 秒只探测当前设备，至少 3 次连续失败且首尾相隔 8 秒才显示离线。确认离线后必须连续成功 2 次才恢复。任意中间成功会清除尚未确认的失败序列，浏览器自身断网导致的普通 fetch 错误不冒充设备离线。
 
 后续增强另行设计：设备 registry/heartbeat/health cache、中央 Push broker、动态授权与网关高可用。若未来采用 Cloudflare Access，origin 必须验证 `Cf-Access-Jwt-Assertion`，不能仅信任 Cookie。[Cloudflare JWT validation](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)
 
@@ -159,6 +161,7 @@ lib/device-directory.ts       环境变量、受限文件读取、mtime cache
 app/api/devices/route.ts      薄 HTTP adapter；no-store；不暴露文件路径
 app/api/devices/select/route.ts 受保护的设备选择控制面与 Cookie 写入
 lib/device-selection*.ts      Cookie/请求边界与带超时客户端
+lib/device-availability.ts    纯函数迟滞状态机；连续失败/恢复阈值
 lib/device-workspace.ts       每设备有界工作区快照、导航恢复与清洗
 hooks/useDeviceDirectory.ts   故障转移目录、所选设备轮询、离线状态与重试
 hooks/useDeviceWorkspace.ts   切换事务、回滚、ready gate 与 View Transition
@@ -178,7 +181,7 @@ deploy/devices.example.json   非敏感示例
 | 配置文件 | 最大 64 KiB、最多 32 台设备 | 超限/损坏条目跳过并返回 diagnostic |
 | `/api/devices` | 页面挂载/切换后加载 | 3 秒超时后保留入口错误，不把离线设备挂载为工作区 |
 | 文件 IO | path + mtime + size cache | 文件变化后下次请求重新解析 |
-| 远端健康 | 只探测当前选择，5 秒轮询；不逐台探测 | 当前设备离线显示恢复页，避免 N×M 探测风暴 |
+| 远端健康 | 只探测当前选择，5 秒轮询；3 次连续失败且跨度 ≥8 秒确认离线，2 次连续成功确认恢复 | 单次抖动不改 UI；持续故障通常约 15 秒进入恢复页，避免 N×M 探测风暴 |
 | 设备切换 | POST + 目标探针各自有界；目标侧栏 ready 最多等待 6 秒 | 超时/错路由回滚原设备并显示错误；不逐台预连 |
 | 当前设备 | 配置不存在时自动注入本机 | 永远保留可用当前设备 |
 | SSE | workspace unmount 触发已有 effect cleanup | 原设备任务继续；旧客户端连接在 Cookie 改变前关闭 |
@@ -211,6 +214,7 @@ deploy/devices.example.json   非敏感示例
 - 组件单设备时隐藏、多设备时显示、当前项不可选、中文/英文文本；
 - 手机端设备胶囊位于一级导航，设备面板直接列出目标机器，2 次点击完成选择；验证 44px 触控目标、忙碌/失败反馈、Esc/焦点闭环；
 - 目录 fetch abort/timeout、选择请求 5 秒 timeout 和卸载后不 setState；
+- 初始探针单次失败后成功不显示离线；运行态单次失败、短时间密集失败和成功打断都不翻转状态；持续失败与连续恢复达到阈值后才翻转；
 - Nginx 已知设备映射、未知值回退、控制面 primary/backup 和全离线恢复页；
 - 旧 workspace 在修改 Cookie 前 unmount，gateway 模式只替换 React epoch、不调用 document navigation；
 - 目标 payload/header 双重校验、失败回滚原设备、每设备工作区快照清洗与上限；

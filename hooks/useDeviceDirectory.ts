@@ -2,10 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  createDeviceAvailabilityTracker,
+  recordDeviceAvailabilitySample,
+} from "@/lib/device-availability";
+import {
   isDeviceDirectoryResponse,
   type DeviceDirectoryResponse,
 } from "@/lib/device-directory-core";
 import {
+  confirmSelectedGatewayDevice,
+  DEVICE_CONFIRMATION_PROBE_TIMEOUT_MS,
   DeviceUnavailableError,
   probeSelectedGatewayDevice,
 } from "@/lib/device-selection-client";
@@ -33,6 +39,8 @@ export function useDeviceDirectory(): DeviceDirectoryState {
   const monitoredDeviceId = state.directory?.selectionMode === "gateway"
     ? state.directory.currentDeviceId
     : null;
+  const monitoredDeviceOffline = monitoredDeviceId !== null
+    && state.offlineDeviceId === monitoredDeviceId;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -49,8 +57,8 @@ export function useDeviceDirectory(): DeviceDirectoryState {
       window.clearTimeout(timeout);
       if (payload.selectionMode === "gateway") {
         try {
-          await probeSelectedGatewayDevice(payload.currentDeviceId, {
-            timeoutMs: DEVICE_DIRECTORY_TIMEOUT_MS,
+          await confirmSelectedGatewayDevice(payload.currentDeviceId, {
+            timeoutMs: DEVICE_CONFIRMATION_PROBE_TIMEOUT_MS,
           });
         } catch (error) {
           if (error instanceof DeviceUnavailableError) {
@@ -100,6 +108,20 @@ export function useDeviceDirectory(): DeviceDirectoryState {
     if (!monitoredDeviceId) return;
     let active = true;
     let inFlight = false;
+    let tracker = createDeviceAvailabilityTracker(
+      monitoredDeviceId,
+      monitoredDeviceOffline,
+    );
+
+    const applySample = (sample: "online" | "offline") => {
+      const wasOffline = tracker.offline;
+      tracker = recordDeviceAvailabilitySample(tracker, sample, performance.now());
+      if (!active || tracker.offline === wasOffline) return;
+      const offline = tracker.offline;
+      setState((current) => current.directory?.currentDeviceId === monitoredDeviceId
+        ? { ...current, offlineDeviceId: offline ? monitoredDeviceId : null }
+        : current);
+    };
 
     const checkAvailability = async () => {
       if (inFlight || document.visibilityState === "hidden") return;
@@ -108,17 +130,9 @@ export function useDeviceDirectory(): DeviceDirectoryState {
         await probeSelectedGatewayDevice(monitoredDeviceId, {
           timeoutMs: DEVICE_DIRECTORY_TIMEOUT_MS,
         });
-        if (active) {
-          setState((current) => current.directory?.currentDeviceId === monitoredDeviceId
-            ? { ...current, offlineDeviceId: null }
-            : current);
-        }
+        applySample("online");
       } catch (error) {
-        if (active && error instanceof DeviceUnavailableError) {
-          setState((current) => current.directory?.currentDeviceId === monitoredDeviceId
-            ? { ...current, offlineDeviceId: error.deviceId }
-            : current);
-        }
+        if (error instanceof DeviceUnavailableError) applySample("offline");
       } finally {
         inFlight = false;
       }
@@ -137,7 +151,7 @@ export function useDeviceDirectory(): DeviceDirectoryState {
       window.removeEventListener("online", checkAvailability);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [monitoredDeviceId]);
+  }, [monitoredDeviceId, monitoredDeviceOffline]);
 
   const retry = useCallback(() => {
     setState((current) => ({ ...current, loading: true, error: null }));
