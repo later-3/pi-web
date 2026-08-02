@@ -228,6 +228,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 
 ### Multi-device access
 - Phase 1 uses a bounded, non-sensitive JSON device directory plus `PI_WEB_DEVICE_*` environment metadata. Invalid configuration hides the switcher but never blocks the current device.
+- Device reachability is demand-driven: do not probe on startup, intervals, `online`, or `visibilitychange`. A normal send has no preflight; after a real send/SSE connection failure, probe health once. Device switching and the explicit retry button also probe exactly once. UI wording must describe gateway reachability, not claim that the physical device is offline.
 - `AppShell` loads `/api/devices` once; parsing and file IO stay in `lib/device-directory*`, while `DeviceSwitcher` owns only interaction and navigation.
 - When `PI_WEB_DEVICE_GATEWAY_URL` matches the external request origin, switching POSTs to `/api/devices/select`, sets the HttpOnly `pi_web_device` preference, and reloads the same origin. Other origins retain direct-URL fallback behavior.
 - The gateway must map only known cookie values, default unknown values to the primary device, and route `/api/devices/select` through the primary control plane so users can switch back from an unavailable worker.

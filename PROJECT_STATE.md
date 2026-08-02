@@ -13,7 +13,7 @@
 | 上游合并提交 | `422194f` |
 | Pi SDK | `0.83.0` |
 | Node.js 下限 | `22.19.0` |
-| 当前验证 | TypeScript、ESLint、`316/316` Node tests、移动 UI 静态检查通过；公网登录、迟滞设备判定、结构化设备离线、`linux-home offline → mac-main` 无清 Cookie 恢复与两端模型 API 通过 |
+| 当前验证 | TypeScript、ESLint、`313/313` Node tests、移动 UI 静态检查通过；公网登录、按需单次设备检查、结构化设备不可达、`linux-home unavailable → mac-main` 无清 Cookie 恢复与两端模型 API 通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
 
 ## 当前自研能力
@@ -74,7 +74,7 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 
 ### P4：同源无刷新双设备闭环已完成，运行态仍需真机持续验收
 
-[多设备 ADR](./docs/multi-device-architecture.zh-CN.md) 的同源入口、设备选择 API、HttpOnly 路由 Cookie、Nginx 白名单粘性路由、共享应用登录和两台真实设备已完成服务端与 390×844 浏览器验收。切换不再重载 document；旧设备 EventSource/fetch 通过 React unmount 清理，路由探针失败会回滚原设备，目标设备恢复自己的工作区快照。2026-08-01 已补控制面跨设备故障转移、结构化离线响应和一键切换在线设备；2026-08-02 又把单样本在线状态改为失败/恢复迟滞，Mac 已部署。Linux 当前离线，恢复后仍需部署同一兼容 build 并完成反向故障转移真机验收。手机交互审计见 [移动端 UX 审计](./docs/mobile-ux-audit-2026-07-30.zh-CN.md)。
+[多设备 ADR](./docs/multi-device-architecture.zh-CN.md) 的同源入口、设备选择 API、HttpOnly 路由 Cookie、Nginx 白名单粘性路由、共享应用登录和两台真实设备已完成服务端与 390×844 浏览器验收。切换不再重载 document；旧设备 EventSource/fetch 通过 React unmount 清理，路由探针失败会回滚原设备，目标设备恢复自己的工作区快照。2026-08-01 已补控制面跨设备故障转移、结构化不可达响应和一键切换；2026-08-02 取消启动/空闲 health 轮询，改为操作失败、显式切换和手动重检时各检查 1 次，并为 Mac HTTP relay 部署自动清理残留 listener 的自愈 wrapper。Linux 当前不可达，恢复后仍需部署同一兼容 build 并完成反向故障转移真机验收。手机交互审计见 [移动端 UX 审计](./docs/mobile-ux-audit-2026-07-30.zh-CN.md)。
 
 ### P5：Linux 活跃 Session 后的优雅重启需要补强
 
@@ -119,18 +119,20 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 1. 事故事实：`linux-home` 的 HTTP relay `33043`、管理 relay `33102` 和两个已知 LAN 地址同时不可达；手机保留 `pi_web_device=linux-home` 后，旧网关把 `/api/devices`、health 和数据 API 的原始 `502` 透给 PWA。Mac、云端 Nginx、cloudflared 和 `33041` 本身在线。
 2. 架构修复：页面、静态资源、应用登录、`/api/devices` 与 `/api/devices/select` 改走 `pi_web_control` upstream，Mac `33041` 为 primary、Linux `33043` 为 backup；任一兼容设备在线即可承载控制面，两端都离线时由云端 Nginx 自己返回恢复页。
 3. 数据安全：Session、Agent、文件等执行面仍严格按 HttpOnly 设备 Cookie 粘性路由，禁止把离线设备的请求静默转到另一台机器；仅 `/api/health` 将连接级 `502/504` 转为 `503 {error:"device_offline", deviceId}`。
-4. UI 修复：启动前加载故障转移设备目录并探测所选设备；离线时不挂载工作区，显示设备名、离线说明、其他设备按钮和“重新检查”。每 5 秒及 `online/visibilitychange` 复查；切换前验证目标 health，失败时回滚原 Cookie。
+4. UI 修复（当时实现，已在 2026-08-02 被按需检测替代）：启动前探测所选设备，随后每 5 秒及 `online/visibilitychange` 复查；离线时显示恢复界面，切换失败回滚原 Cookie。
 5. 生产部署：Mac build id `IdYqtapIsO7Tj9UJxqmMr`，旧产物备份 `.next-mobile-backup-pre-device-failover-20260801T064857Z`；云端 Nginx release `20260801T065252Z`。陈旧 `33041` sshd listener 已定向回收，新 `com.later.pi-web.cloud-relay` 为 `runs=1`、当前进程持有。
 6. 真实验收：保留 Linux Cookie 的已登录公网请求得到 root `200`、directory `200/current=linux-home`、health `503/device_offline`；选择 Mac 返回 `200`，随后 Mac health `200`。TypeScript、ESLint、Nginx parser 和显式 `.test.mjs` `308/308` 通过。
 7. 待办：Linux 仍物理离线，当前保留上一 build。恢复联网后必须部署同一兼容版本，再做 `Mac offline → Linux control plane → 显示/切换` 的对称真机验收。
 
-## 2026-08-02 设备离线判定去抖
+## 2026-08-02 从轮询去抖改为按需连接判断
 
-1. 根因：原前端启动只探测 1 次，运行中每 5 秒探测 1 次；任意单次 `502/503/504` 或探针超时立即显示离线，下一次成功又立即恢复。它把一次连接抖动直接映射为用户可见状态，并不能证明 Mac 真正离线。
-2. 机制：新增纯函数迟滞状态机。运行中保留 5 秒采样，但必须 3 次连续失败且首尾跨度至少 8 秒才确认离线；任意成功清空尚未确认的失败序列。确认离线后需要 2 次连续成功才恢复。冷启动使用最多 3 次、单次 1.2 秒、间隔 400ms 的短探针确认。
-3. 生产部署：Mac build id `1_SQOzCGm7VQ1JzKEHqWa`，旧 build `IdYqtapIsO7Tj9UJxqmMr` 保存在 `.next-mobile-backup-pre-device-hysteresis-20260802T004539Z`；LaunchAgent 新进程 PID `55590`、`runs=1`，`30141` listener 与 PID 一致。云端 Nginx 配置没有变化。
-4. 验证证据：TypeScript、ESLint 与显式 `.test.mjs` `316/316` 通过；候选构建先在 `30142` 完成登录、目录、运行任务和 health 验证，确认正式服务运行任务为 0 后原子切换。公网默认/Mac health=`200 online`；保留 Linux Cookie 时 root=`200`、directory=`200/current=linux-home`、health=`503 device_offline`、选择 Mac=`200`。
-5. 当前外部状态：`linux-home` 仍物理离线，因此全链路脚本的 4 个失败均对应 Linux 管理/HTTP relay 与直连；Mac、云端 Nginx、cloudflared、控制面和公网 Mac 路由均通过。Linux 恢复后仍需部署兼容 build。
+1. 交互根因：原前端启动探测并每 5 秒轮询，先后经历“单样本翻转”和“3 次失败/2 次恢复”的迟滞方案。迟滞只能降低误报，仍会在用户阅读或输入时用后台状态替换整个工作区，且把“云端 relay 不可达”错误写成“物理设备离线”。
+2. 本次实证：用户看到 `Main Mac is offline` 时，Mac 本机 `30141 health=200`；云端 `33041 health=000`，HTTP relay LaunchAgent 已 `runs=558`，日志持续为 `remote port forwarding failed for listen port 33041`。Mac 和 Pi Web 没有关机，真正故障是云端残留的 `sshd` reverse listener 阻止新隧道建立。
+3. 产品机制：启动和空闲 health 探针均为 0。健康发送直接执行，不做预检；只有发送或 SSE 建连失败后补做 1 次 health 判断。设备切换和“重新检测”按钮也各做 1 次，不自动重试。确认后文案为“网关暂时无法连接，设备本身可能仍在线”；普通应用 `503` 与浏览器自身断网不冒充设备不可达。
+4. Relay 自愈：新增 `scripts/run-pi-web-cloud-relay.sh` 并替换 Mac HTTP relay LaunchAgent。每次重连前保留仍健康的 listener；连续 health 失败时只回收 owner=`sshd` 的专用 `33041` listener，再 `exec ssh`。当前 HTTP relay PID `48227`、`runs=1`；同类残留的 Mac 管理 relay `33101` 已定向恢复，device-access probe 通过。
+5. 生产部署：Mac build id `jJfOKdo__rBFBSpB6xUz2`，旧 build `1_SQOzCGm7VQ1JzKEHqWa` 保存在 `.next-mobile-backup-pre-on-demand-device-check-20260802T053508Z`；production PID `57712`、`runs=1`，`30141` listener 与 PID 一致。HTTP relay 原 plist 备份为 `~/Library/LaunchAgents/com.later.pi-web.cloud-relay.plist.pre-self-healing-20260802T053008Z`。
+6. 验证证据：TypeScript、ESLint、shell syntax 与显式 `.test.mjs` `313/313` 通过；候选 build 先在 `30142` 完成登录、目录、运行任务和 health 验证，确认正式运行任务为 0 后原子切换。公网已登录 root=`200` 且引用新 chunk，directory=`200/current=mac-main`、Mac health=`200 online`、Linux health=`503 device_offline`。
+7. 当前外部状态：全链路 `22` 项中 Mac、云端 Nginx、cloudflared、控制面和公网 Mac 路由均通过；`4` 个失败与 `1` 个警告只对应仍不可达的 Linux 管理/HTTP relay、直连和 Linux Cookie。Linux 恢复后仍需部署兼容 build。
 
 ## 下一次更新本文件时至少记录
 

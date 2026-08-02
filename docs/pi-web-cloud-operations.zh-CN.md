@@ -66,7 +66,13 @@
 
 前端原机制是启动时探测 1 次，随后每 5 秒探测当前设备；任何单次 `502/503/504` 或探针超时都会立刻显示离线，下一次成功又立刻恢复。因此云端连接抖动、旧 relay 短暂停顿或一次超时会造成“使用中突然离线又连上”，不能据此证明设备真的掉线。
 
-现机制保留每 5 秒采样，但用迟滞状态机隔离瞬时故障：运行中必须连续失败至少 3 次，且第一次到最后一次失败相隔至少 8 秒，才显示设备离线；任意一次成功会清空未确认的失败序列。确认离线后必须连续成功 2 次才恢复。冷启动独立使用最多 3 次、单次 1.2 秒、间隔 400ms 的短探针，既不因第一个失败误报，也不让真实离线等待完整运行态窗口。阈值集中在 `lib/device-availability.ts`，行为由纯函数测试锁定。
+曾短暂采用“3 次失败/2 次恢复”的迟滞状态机，但这仍然保留了无用户价值的后台轮询，并可能在用户阅读或输入时把整个工作区替换成不可达页。该中间方案已由下一节的按需检测替代。
+
+### 2.3 2026-08-02 从“设备离线”改为按需连接判断
+
+本次用户看到 `Main Mac is offline` 时，Mac 本机 `127.0.0.1:30141/api/health=200`，说明 Pi Web 与机器都在运行；但云端 `33041 health=000`，LaunchAgent 已累计 `runs=558`，日志持续为 `remote port forwarding failed for listen port 33041`。准确事实是“云端无法通过残留的 reverse listener 到达 Mac”，不是“Mac 离线”。已定向回收云端失效的 `sshd` listener 并恢复 HTTP relay。
+
+产品机制同步改为需求驱动：启动和空闲时不请求 health；健康发送直接执行，只有真实发送/SSE 建连失败后才补做 1 次 health 判断；设备切换与“重新检测”也各做 1 次。确认后文案为“网关暂时无法连接，设备本身可能仍在线”。普通应用 `503` 或浏览器本身断网不会被归类为设备不可达。Mac LaunchAgent 改用 `run-pi-web-cloud-relay.sh`：每次重连前先保留仍健康的 listener；若连续 health 失败，只在 owner=`sshd` 时定向回收，再建立新隧道，避免 raw ssh 永久重试 `remote port forwarding failed`。
 
 ## 3. 实际部署架构
 
@@ -262,10 +268,10 @@ KillMode=mixed
 | 问题 | 表象 | 根因/证据 | 当前防护 |
 |---|---|---|---|
 | Mac 断网/换网导致 relay 建不起来 | 手机入口 `502` 或超时；云服务仍 active | Mac SSH 日志 `Network is unreachable`；Cloud `33041` upstream refused | LaunchAgent `KeepAlive` 自动重试；新脚本同时看本机、云端和历史摘要 |
-| 云端残留旧 reverse listener | `33041` 看似 LISTEN，但 health 超时；新 SSH 报 forward failure | Mac 休眠/网络切换后旧 server-side `sshd` 停在半关闭状态 | `manage-pi-web.sh start/restart` 只在 owner=`sshd` 时回收专用端口 |
+| 云端残留旧 reverse listener | `33041` 看似 LISTEN，但 health 超时；新 SSH 报 forward failure | Mac 休眠/网络切换后旧 server-side `sshd` 停在半关闭状态 | LaunchAgent wrapper 每次重连前自动确认 health，失败时只回收 owner=`sshd` 的专用端口；管理脚本保留人工兜底 |
 | Linux npm wrapper 留下孤儿 Next | health 仍绿，但 systemd `activating (auto-restart)`、新进程 `EADDRINUSE` | `npm → shell → next-server` 信号/进程归属错误 | systemd 直接管理 Node/Next，`KillMode=mixed`；验收 MainPID/listener/cgroup |
 | Linux 粘性后端离线 | 旧版出现 Cloudflare `502` | 目录和 health 误跟随离线 Cookie，前端没有离线状态 | 控制面跨设备 failover；health=`503 device_offline`；离线页一键切设备，不清 Cookie |
-| 在线设备离线提示闪烁 | 使用中突然显示离线，随后约 5 秒恢复 | 旧前端把一个健康样本直接映射为 UI 状态，没有失败/恢复迟滞 | 3 次连续失败且跨度 ≥8 秒才离线；2 次连续成功才恢复；冷启动 3 次短确认 |
+| 在线设备被写成“离线” | 电脑和本机服务在线，但云端 relay 不通 | UI 把“网关可达性”等同于“机器在线状态”，并在后台主动轮询 | 改称“网关暂时无法连接”；启动/空闲零探针，操作失败、切换或手动重检时各检查 1 次 |
 | 两端版本或签名密钥不一致 | 切换设备后 `401`、资源错配或白屏 | 同源 gateway 成员没有兼容 build 或共享认证材料 | 同 commit 构建、共享账号/签名密钥、部署后双 Cookie 路由验收 |
 | 误用 Nginx Basic Auth | iOS PWA 原生弹框、无法恢复登录 | 浏览器原生 Basic Auth 与 installed PWA 不兼容 | 只用应用 `/login` + HttpOnly 签名 Cookie；Nginx 禁止 `auth_basic` |
 

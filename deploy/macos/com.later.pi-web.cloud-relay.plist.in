@@ -8,27 +8,14 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/bin/ssh</string>
-    <string>-NT</string>
-    <string>-o</string>
-    <string>BatchMode=yes</string>
-    <string>-o</string>
-    <string>ConnectionAttempts=3</string>
-    <string>-o</string>
-    <string>ConnectTimeout=10</string>
-    <string>-o</string>
-    <string>ExitOnForwardFailure=yes</string>
-    <string>-o</string>
-    <string>ServerAliveInterval=30</string>
-    <string>-o</string>
-    <string>ServerAliveCountMax=3</string>
-    <string>-o</string>
-    <string>StrictHostKeyChecking=yes</string>
-    <string>-o</string>
-    <string>TCPKeepAlive=yes</string>
-    <string>-R</string>
-    <string>127.0.0.1:33041:127.0.0.1:30141</string>
-    <string>root@121.43.113.236</string>
+    <string>/bin/bash</string>
+    <string>__PROJECT_ROOT__/scripts/run-pi-web-cloud-relay.sh</string>
+    <string>--cloud-host</string>
+    <string>__CLOUD_HOST__</string>
+    <string>--remote-port</string>
+    <string>__REMOTE_PORT__</string>
+    <string>--local-port</string>
+    <string>__LOCAL_PORT__</string>
   </array>
 
   <key>RunAtLoad</key>
@@ -36,7 +23,7 @@
   <key>KeepAlive</key>
   <true/>
   <key>ThrottleInterval</key>
-  <integer>10</integer>
+  <integer>5</integer>
   <key>ProcessType</key>
   <string>Background</string>
 

@@ -13,7 +13,7 @@
 - 电脑访问：<http://127.0.0.1:30141>
 - 手机访问：<https://pi.ai4child.asia>
 - 控制面优先由 Mac 承担，Mac 不可达时自动回退到兼容的 Linux；只要至少一台网关成员在线，入口、登录和设备选择都应可用。全部设备离线时由云端显示恢复页。
-- 页面每 5 秒只检查当前所选设备，但不会因一次失败闪现“设备离线”：运行中需要 3 次连续失败且首尾相隔至少 8 秒才确认离线，确认后需要 2 次连续成功才恢复。冷启动使用 3 次短探针确认，避免一次瞬时 502/超时误判。
+- 页面启动和空闲期间不做设备 health 轮询。正常发送直接执行，不增加预检；只有真实操作失败后才补做 1 次 health 判断。切换设备和“重新检测”按钮也各只检查 1 次，不自动重复。
 
 ## 当前第二台设备
 
@@ -165,6 +165,7 @@ production 使用 `.next-mobile/`，不会与开发服务器的 `.next/` 混用�
 |---|---|---|
 | `scripts/check-pi-web-cloud.sh` | 只读分层检查 Mac/Linux 双后端、云服务、端口和公网路由 | Mac 或已配置 device-access 的管理设备 |
 | `scripts/manage-pi-web.sh` | 日常 `status/start/stop/restart/logs`，并处理僵尸隧道 | Mac |
+| `scripts/run-pi-web-cloud-relay.sh` | LaunchAgent 使用的自愈入口；重连前安全处理失效的云端 `sshd` listener | Mac（由 launchd 调用） |
 | `scripts/install-mobile-relay.sh` | 构建、配置云端、安装 LaunchAgent | Mac |
 | `scripts/verify-mobile-relay.sh` | 验证本机、隧道、Nginx、登录和公网 | Mac |
 | `scripts/uninstall-mobile-relay.sh` | 卸载两个 LaunchAgent，保留用户数据 | Mac |
@@ -189,11 +190,11 @@ production 使用 `.next-mobile/`，不会与开发服务器的 `.next/` 混用�
 按失败位置处理：
 
 1. `本机健康检查` 失败：执行 `./scripts/manage-pi-web.sh logs`，再检查 `lsof -nP -iTCP:30141 -sTCP:LISTEN`。
-2. 本机正常但 `云端隧道检查` 失败：执行 `./scripts/manage-pi-web.sh restart`。脚本会先关闭当前隧道，并仅在确认 `33041` 的占用者是 `sshd` 时回收旧连接。
+2. 本机正常但 `云端隧道检查` 失败：新版 `run-pi-web-cloud-relay.sh` 会在 launchd 重试前自动检查并回收仅由 `sshd` 占用、但 health 连续失败的 `33041` 残留 listener。若仍未恢复，再执行 `./scripts/manage-pi-web.sh restart` 并查看 relay 日志。
 3. 云端隧道正常但 `手机公网检查` 失败：检查云服务器的 Nginx 和 cloudflared。
 4. `/login` 能打开但登录失败：检查 `deploy/secrets/pi-web-auth-credentials.json`，权限必须是 `600`；不要把密码打印进日志或提交 Git。
-5. Linux 掉线：冷启动和已打开页面都会显示“设备离线”，设备目录与选择接口继续由在线控制面提供；直接点“切换到 Main Mac”即可，不应再清除 Cookie 或站点数据。若仍见 Cloudflare 502，说明控制面所有成员或云端入口本身异常。
-6. “设备离线”一闪而过又恢复：这是旧版单样本判定的表现。新版运行中连续失败至少覆盖约 10 秒的确认窗口（按 5 秒轮询，通常约 15 秒才进入离线页），恢复也要连续成功 2 次；先刷新 PWA 确认已加载新版，再运行检查脚本区分真实 relay 故障与客户端旧缓存。
+5. Linux 不可达：启动时不主动探测，也不会阻断页面；切换到 Linux、发送失败或主动重检时才检查一次。确认后界面显示“网关暂时无法连接”，可切到 Main Mac，不应清除 Cookie 或站点数据。
+6. 使用中出现“暂时无法连接”：这表示云端到该设备的 Pi Web relay 不通，不代表电脑关机。新版没有后台轮询；点击“重新检测”会执行 1 次探针，成功立即恢复，失败则保持当前界面。
 7. 切换过程中出现整页白屏：先确认两台设备均为 `67effb8` 或更新版本，并检查浏览器是否命中旧 Service Worker 资源；刷新一次 PWA 后再复测。gateway 正常路径不应调用 document reload。
 
 云服务器只读检查命令：

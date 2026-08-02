@@ -16,19 +16,18 @@ test("does not update React state after unmount", () => {
   assert.match(source, /active = false;[\s\S]*controller\.abort\(\)/);
 });
 
-test("probes the selected gateway backend and preserves metadata when it is offline", () => {
-  assert.match(source, /confirmSelectedGatewayDevice\(payload\.currentDeviceId/);
+test("checks the selected backend only through an explicit action", () => {
+  assert.match(source, /const checkSelectedDevice = useCallback/);
+  assert.match(source, /probeSelectedGatewayDevice\(deviceId/);
   assert.match(source, /error instanceof DeviceUnavailableError/);
-  assert.match(source, /directory: payload,[\s\S]*offlineDeviceId: error\.deviceId/);
-  assert.match(source, /const retry = useCallback/);
-  assert.match(source, /DEVICE_AVAILABILITY_POLL_MS = 5_000/);
-  assert.match(source, /window\.setInterval\(\(\) => void checkAvailability\(\)/);
+  assert.match(source, /offlineDeviceId: deviceId/);
+  assert.match(source, /void checkSelectedDevice\(\)/);
 });
 
-test("uses hysteresis instead of changing visible state after every probe", () => {
-  assert.match(source, /createDeviceAvailabilityTracker/);
-  assert.match(source, /recordDeviceAvailabilitySample\(tracker, sample, performance\.now\(\)\)/);
-  assert.match(source, /tracker\.offline === wasOffline/);
-  assert.match(source, /applySample\("online"\)/);
-  assert.match(source, /applySample\("offline"\)/);
+test("does not probe on startup, on a timer, or on browser lifecycle events", () => {
+  const directoryLoad = source.slice(source.indexOf("useEffect(() =>"), source.indexOf("const checkSelectedDevice"));
+  assert.doesNotMatch(directoryLoad, /probeSelectedGatewayDevice/);
+  assert.doesNotMatch(source, /setInterval/);
+  assert.doesNotMatch(source, /visibilitychange/);
+  assert.doesNotMatch(source, /addEventListener\("online"/);
 });

@@ -1,3 +1,5 @@
+import { deviceUnavailableErrorFromResponse } from "./device-selection-client";
+
 // Client-side helper for POST /api/agent/[id].
 //
 // Every /api/agent/[id] route returns one of:
@@ -21,6 +23,8 @@ export async function sendAgentCommand<T = unknown>(
     data?: T;
     error?: string;
   };
+  const unavailableError = deviceUnavailableErrorFromResponse(res, body);
+  if (unavailableError) throw unavailableError;
   if (!res.ok || body.error) {
     throw new Error(body.error ?? `HTTP ${res.status}`);
   }

@@ -75,7 +75,7 @@ Push 内容只使用有界预览和 Session 深链，不发送完整对话。HTT
 9. 同 origin 网关只切换后端路由，不迁移运行中的 Agent；`pi_web_device` 只能由受保护 API 写入，Nginx 只接受已知 id。控制面在兼容成员间故障转移，执行面绝不因设备离线静默换机。
 10. 同一网关内的设备共享应用账号和 Cookie 签名密钥，但 Session、Provider/OAuth、项目文件、Push store 与 Agent 进程仍留在各设备。
 11. gateway 模式切换不得调用 `window.location.reload/assign`；旧工作区必须先 unmount 完成连接清理，再修改路由 Cookie。目标探针失败要回滚原设备，切换成功只替换带 epoch key 的 React 工作区。
-12. 所选设备离线时 `/api/devices` 仍须可读，health 返回结构化 `device_offline`；UI 不挂载离线工作区，必须显示离线状态、重新检查和显式切换入口。全部成员离线时云端仍返回本地恢复页，不能透传 Cloudflare 通用 502。
+12. 所选设备不可达时 `/api/devices` 仍须可读，health 返回结构化 `device_offline`；启动和空闲期间禁止后台 health 轮询。只有真实操作失败、显式切换或用户点击“重新检测”时检查 1 次；确认后 UI 使用“网关暂时无法连接”而非“设备离线”，并提供重检和显式切换入口。全部成员不可达时云端仍返回本地恢复页，不能透传 Cloudflare 通用 502。
 12. 每台设备的最后 Session/cwd、文件页签和右侧面板只存于当前浏览器的有界 `sessionStorage` 快照；解析时必须丢弃损坏或越界数据，不能把设备状态混写到另一台设备。
 13. 手机设备入口属于一级导航：主界面点设备胶囊、设备面板点目标机器共 2 次点击。不得重新塞回“更多”菜单或叠加第二层下拉；切换提交前必须显示目标行忙碌状态，当前设备不可重复选择。
 14. `PI_WEB_PASSWORD` Basic Auth 与 `PI_WEB_AUTH_*` 应用登录互斥；两者同时存在必须 fail closed。公网 installed PWA 始终选择应用登录，避免原生认证框与 API/SSE 恢复冲突。

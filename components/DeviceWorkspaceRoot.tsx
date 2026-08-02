@@ -76,9 +76,14 @@ export function DeviceWorkspaceRoot() {
               {t("devices.switchToAvailable", { name: device.name })}
             </button>
           ))}
-        <button type="button" className={styles.secondaryAction} onClick={deviceDirectory.retry}>
+        <button
+          type="button"
+          className={styles.secondaryAction}
+          onClick={deviceDirectory.retry}
+          disabled={deviceDirectory.checking}
+        >
           <IconRefresh size={17} stroke={1.8} aria-hidden="true" />
-          {t("devices.checkAgain")}
+          {t(deviceDirectory.checking ? "devices.checking" : "devices.checkAgain")}
         </button>
       </div>
       <p className={styles.offlineHint}>{t("devices.offlineHint")}</p>
@@ -96,6 +101,7 @@ export function DeviceWorkspaceRoot() {
           onDeviceNavigate={workspace.switchDevice}
           onWorkspaceReady={workspace.markWorkspaceReady}
           onWorkspaceSnapshot={workspace.saveSnapshot}
+          onConnectionFailure={deviceDirectory.checkSelectedDevice}
         />
       )}
       {deviceDirectory.loading && (

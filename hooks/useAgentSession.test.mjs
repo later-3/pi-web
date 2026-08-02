@@ -21,6 +21,9 @@ test("closes the session event stream only after prompt settlement or a pre-prom
   assert.match(finishSource, /closeEvents\(\)/);
   assert.doesNotMatch(agentEndSource, /closeEvents\(\)/);
   assert.match(agentEndSource, /Keep the stream open until prompt_done/);
-  assert.match(sendSource, /if \(promptRequestStarted && sentSessionId\) \{[\s\S]*?waitForPromptSettlement/);
-  assert.match(sendSource, /if \(promptRequestStarted && sentSessionId\) \{[\s\S]*?return;[\s\S]*?\}[\s\S]*?closeEvents\(\)/);
+  assert.match(sendSource, /if \(promptRequestStarted && sentSessionId && !\(e instanceof DeviceUnavailableError\)\) \{[\s\S]*?waitForPromptSettlement/);
+  assert.match(sendSource, /if \(promptRequestStarted && sentSessionId && !\(e instanceof DeviceUnavailableError\)\) \{[\s\S]*?return;[\s\S]*?\}[\s\S]*?closeEvents\(\)/);
+  assert.match(sendSource, /await onConnectionFailure\?\.\(\)/);
+  assert.match(sendSource, /if \(availability !== false\)/);
+  assert.match(sendSource, /insertIfEmpty\(message\)/);
 });

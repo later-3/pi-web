@@ -60,6 +60,7 @@ interface AppShellProps {
   onDeviceNavigate: (device: DeviceDescriptor) => void | Promise<void>;
   onWorkspaceReady: () => void;
   onWorkspaceSnapshot: (snapshot: DeviceWorkspaceSnapshot) => void;
+  onConnectionFailure: () => Promise<boolean | null>;
 }
 
 export function AppShell({
@@ -69,6 +70,7 @@ export function AppShell({
   onDeviceNavigate,
   onWorkspaceReady,
   onWorkspaceSnapshot,
+  onConnectionFailure,
 }: AppShellProps) {
   const router = useRouter();
   const { isDark, toggleTheme } = useTheme();
@@ -1623,6 +1625,7 @@ export function AppShell({
               onSessionStatsPanelOpen={openSessionStatsPanel}
               onContextUsageChange={handleContextUsageChange}
               onOpenFile={handleOpenLinkedFile}
+              onConnectionFailure={onConnectionFailure}
             />
           ) : initialCwdStatus === "validating" ? (
             <div

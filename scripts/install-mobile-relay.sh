@@ -230,6 +230,9 @@ escaped_next_bin="$(escape_sed "$next_bin")"
 escaped_credentials_file="$(escape_sed "$credentials_file")"
 escaped_session_secret_file="$(escape_sed "$session_secret_file")"
 escaped_public_hostname="$(escape_sed "$public_hostname")"
+escaped_cloud_host="$(escape_sed "$cloud_host")"
+escaped_remote_port="$(escape_sed "$remote_port")"
+escaped_local_port="$(escape_sed "$local_port")"
 
 # Production plist.
 sed \
@@ -261,6 +264,10 @@ sed \
 # Relay plist.
 sed \
   -e "s|__LOG_DIR__|$escaped_log_dir|g" \
+  -e "s|__PROJECT_ROOT__|$escaped_project_root|g" \
+  -e "s|__CLOUD_HOST__|$escaped_cloud_host|g" \
+  -e "s|__REMOTE_PORT__|$escaped_remote_port|g" \
+  -e "s|__LOCAL_PORT__|$escaped_local_port|g" \
   "$project_root/deploy/macos/com.later.pi-web.cloud-relay.plist.in" > "$relay_plist"
 
 chmod 600 "$production_plist" "$relay_plist"
