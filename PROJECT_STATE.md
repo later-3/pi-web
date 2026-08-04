@@ -139,7 +139,7 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 1. 移动端侧栏改为全宽工作区浏览器，Session/文件分成两个页签；Session 增加搜索，文件改为带面包屑的逐级目录导航，并提供 All/Changed 过滤和不低于 `44px` 的触控操作。
 2. Models、Skills、Plugins、Extensions 与移动自检移入顶栏溢出菜单，避免在有限高度内和文件列表争抢空间；桌面端原有树形文件浏览保持不变。
 3. 用户看到“所有 Pi Web 设备都离线”时，Mac 本机 production 与 `127.0.0.1:30141` 实际正常，云端 `33041` listener 缺失；直接故障是 Mac 到云端的 reverse SSH relay，不是 Mac 物理离线。确认运行 Session 为 `0` 后定向重启 Mac production/relay，`33041`、公网默认路由和 Mac Cookie 路由恢复 `200`。
-4. 云端故障页改为“云端暂时无法连接执行设备”，并明确设备本身可能仍在线；Nginx release `20260804T002352Z` 已通过自动备份、`nginx -t` 和 reload 部署。Linux 当前仍不可达，但不再影响 Mac 默认入口。
+4. 云端故障页改为“云端暂时无法连接执行设备”，并明确设备本身可能仍在线；Nginx release `20260804T002352Z` 已通过自动备份、`nginx -t` 和 reload 部署。移动工作区 production build id `YiObNJqmga67GsqYQEVxW` 已部署到 Mac，Linux 当前仍不可达，但不再影响 Mac 默认入口。
 5. 验证证据：TypeScript、ESLint、移动 UI 静态检查 `50/50`、显式 `.test.mjs` `314/314` 与 `git diff --check` 全部通过；云端 Nginx `active` 且安装配置包含新故障语义。
 
 ## 下一次更新本文件时至少记录
