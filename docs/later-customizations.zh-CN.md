@@ -13,7 +13,7 @@
 | 应用内登录 | PWA 不依赖不稳定的浏览器 Basic Auth 弹窗 | `proxy.ts`、`lib/web-auth.ts`、`app/login/` | `lib/web-auth.test.mjs` |
 | 多账号 Cookie | 一个账号改密不误伤其他账号，支持短期/30 天登录 | `app/api/auth/session/route.ts` | 篡改、过期、改密、跳转测试 |
 | Agent 完成推送 | 手机锁屏或后台时收到完成通知 | `lib/push-notifications.ts`、`app/api/push/route.ts` | `lib/push-notifications.test.mjs` + 真机测试 |
-| 移动端工作区 | 390×844 等小屏可切项目、Session 和文件 | `MobileWorkspaceHeader.tsx`、`AppShell.tsx`、`app/globals.css` | `scripts/verify-mobile-ui.mjs` + 真机 |
+| 移动端工作区 | 390×844 等小屏使用全宽工作区浏览器切项目、搜索 Session，并通过逐级目录导航访问文件 | `MobileWorkspaceHeader.tsx`、`SessionSidebar.tsx`、`FileExplorer.tsx`、`AppShell.tsx`、`app/globals.css` | `scripts/verify-mobile-ui.mjs` + 真机 |
 | iOS 键盘/安全区修正 | 输入框不被键盘、刘海或 Home Indicator 挤偏 | `hooks/useVisualViewport.ts`、`lib/mobile-viewport.ts` | viewport 单测 + iOS PWA 聚焦/收键盘 |
 | Extension 管理 | 全局启停扩展，并可在 Session 创建前决定加载范围 | `ExtensionsConfig.tsx`、`lib/extensions-service.ts` | 开关后核对资源加载与 Session 配置 |
 | Provider Request 查看 | 把终端中的密集 JSON 变成可搜索、可放大的结构化视图 | `ProviderRequests.tsx`、`app/api/provider-requests/route.ts` | 小窗、全屏、长 JSON、错误响应 |

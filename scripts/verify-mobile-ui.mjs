@@ -144,6 +144,10 @@ check(
 
 // 6. Check MobileDebugOverlay exists and is imported
 console.log("\n6. Mobile debug overlay");
+const mobileWorkspaceHeader = readFileSync(resolve(root, "components/MobileWorkspaceHeader.tsx"), "utf8");
+const mobileDeviceSwitcher = readFileSync(resolve(root, "components/MobileDeviceSwitcher.tsx"), "utf8");
+const sessionSidebar = readFileSync(resolve(root, "components/SessionSidebar.tsx"), "utf8");
+const fileExplorer = readFileSync(resolve(root, "components/FileExplorer.tsx"), "utf8");
 check(
   "MobileDebugOverlay component exists",
   readFileSync(resolve(root, "components/MobileDebugOverlay.tsx"), "utf8").length > 100,
@@ -154,7 +158,7 @@ check(
 );
 check(
   "Installed PWA has an in-app self-check entry",
-  appShell.includes("Run mobile self-check") && appShell.includes("mobileDebugOpen"),
+  mobileWorkspaceHeader.includes('t("mobile.selfCheck")') && appShell.includes("mobileDebugOpen"),
 );
 check(
   "Mobile workspace header is mounted only in the mobile shell",
@@ -168,10 +172,8 @@ check(
 check(
   "Mobile workspace header exposes new session",
   appShell.includes("onNewSession={(cwd) => handleNewSession") &&
-    readFileSync(resolve(root, "components/MobileWorkspaceHeader.tsx"), "utf8").includes("Create new session in current project"),
+    mobileWorkspaceHeader.includes('t("mobile.newSession")'),
 );
-const mobileWorkspaceHeader = readFileSync(resolve(root, "components/MobileWorkspaceHeader.tsx"), "utf8");
-const mobileDeviceSwitcher = readFileSync(resolve(root, "components/MobileDeviceSwitcher.tsx"), "utf8");
 const mobileHeaderActions = mobileWorkspaceHeader.slice(
   mobileWorkspaceHeader.indexOf('<div className="mobile-header-actions">'),
   mobileWorkspaceHeader.indexOf("</header>"),
@@ -198,16 +200,54 @@ check(
     css.includes("height: calc(var(--visual-viewport-height, 100dvh) - var(--mobile-header-height))"),
 );
 check(
+  "Mobile workspace browser uses the full available width",
+  css.includes("right: var(--safe-area-right)") &&
+    css.includes("width: auto") &&
+    css.includes("max-width: none"),
+);
+check(
+  "Mobile workspace separates sessions and files into tabs",
+  sessionSidebar.includes('export type MobileWorkspaceView = "sessions" | "files"') &&
+    sessionSidebar.includes('role="tablist"') &&
+    sessionSidebar.includes('mobileView === "sessions"') &&
+    sessionSidebar.includes('mobileView === "files"'),
+);
+check(
+  "Mobile files use drill-down navigation with breadcrumbs",
+  sessionSidebar.includes('navigationMode={isMobile ? "drilldown" : "tree"}') &&
+    fileExplorer.includes('navigationMode?: "tree" | "drilldown"') &&
+    fileExplorer.includes("mobile-file-breadcrumbs") &&
+    fileExplorer.includes("onOpenDirectory={setCurrentDirectory}"),
+);
+check(
+  "Mobile file rows and toolbar actions meet touch sizing",
+  css.includes(".mobile-file-row") &&
+    css.includes("min-height: 52px") &&
+    sessionSidebar.includes("size={44}"),
+);
+check(
+  "Mobile session browser exposes search",
+  sessionSidebar.includes("mobile-session-search") &&
+    sessionSidebar.includes('type="search"'),
+);
+check(
   "Session rename and delete have a touch action sheet",
-  readFileSync(resolve(root, "components/SessionSidebar.tsx"), "utf8").includes("Session actions for") &&
-    readFileSync(resolve(root, "components/SessionSidebar.tsx"), "utf8").includes("Rename session") &&
-    readFileSync(resolve(root, "components/SessionSidebar.tsx"), "utf8").includes("Delete session"),
+  sessionSidebar.includes("Session actions for") &&
+    sessionSidebar.includes("Rename session") &&
+    sessionSidebar.includes("Delete session"),
 );
 check(
   "File mention and download have a touch action sheet",
-  readFileSync(resolve(root, "components/FileExplorer.tsx"), "utf8").includes("File actions for") &&
-    readFileSync(resolve(root, "components/FileExplorer.tsx"), "utf8").includes("Insert into chat") &&
-    readFileSync(resolve(root, "components/FileExplorer.tsx"), "utf8").includes("Download file"),
+  fileExplorer.includes('t("files.actionsFor"') &&
+    fileExplorer.includes('t("files.insertChat"') &&
+    fileExplorer.includes('t("files.downloadFile"'),
+);
+check(
+  "Mobile management entries live in the overflow menu",
+  mobileWorkspaceHeader.includes("onOpenModels") &&
+    mobileWorkspaceHeader.includes("onOpenSkills") &&
+    mobileWorkspaceHeader.includes("onOpenPlugins") &&
+    mobileWorkspaceHeader.includes("onOpenExtensions"),
 );
 check(
   "Visual viewport delegates standalone height calculation",

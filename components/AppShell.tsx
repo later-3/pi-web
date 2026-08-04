@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { SessionSidebar } from "./SessionSidebar";
+import { SessionSidebar, type MobileWorkspaceView } from "./SessionSidebar";
 import { ChatWindow } from "./ChatWindow";
 import { FileViewer } from "./FileViewer";
 import { TabBar, type Tab } from "./TabBar";
@@ -98,6 +98,7 @@ export function AppShell({
   const [extensionsConfigOpen, setExtensionsConfigOpen] = useState(false);
   const [mobileDebugOpen, setMobileDebugOpen] = useState(false);
   const [mobileUtilitiesOpen, setMobileUtilitiesOpen] = useState(false);
+  const [mobileWorkspaceView, setMobileWorkspaceView] = useState<MobileWorkspaceView>("sessions");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(
     () => initialWorkspaceSnapshot.rightPanelOpen,
@@ -693,8 +694,11 @@ export function AppShell({
         onExplorerRefresh={handleExplorerRefresh}
         onAtMention={handleAtMention}
         onAtMentions={handleAtMentions}
+        mobileView={mobileWorkspaceView}
+        onMobileViewChange={setMobileWorkspaceView}
+        onRequestClose={() => setSidebarOpen(false)}
       />
-      <div style={{ padding: "8px", flexShrink: 0, display: "flex", justifyContent: "space-between", gap: 4 }}>
+      {!isMobile && <div style={{ padding: "8px", flexShrink: 0, display: "flex", justifyContent: "space-between", gap: 4 }}>
         {([
           {
              label: translate("common.models"),
@@ -768,28 +772,7 @@ export function AppShell({
             {label}
           </button>
         ))}
-      </div>
-      {isMobile && (
-        <button
-          onClick={() => {
-            setSidebarOpen(false);
-            setMobileDebugOpen(true);
-          }}
-          style={{
-            flexShrink: 0,
-            minHeight: 44,
-            margin: "0 8px 8px",
-            border: "1px solid var(--border)",
-            borderRadius: 9,
-            background: "var(--bg)",
-            color: "var(--text-muted)",
-            cursor: "pointer",
-            fontSize: 12,
-          }}
-        >
-          Run mobile self-check
-        </button>
-      )}
+      </div>}
     </>
   );
 
@@ -915,7 +898,6 @@ export function AppShell({
           <MobileWorkspaceHeader
             selectedSession={selectedSession}
             cwd={selectedSession?.cwd ?? activeCwd ?? effectiveNewSessionCwd}
-            rightPanelOpen={rightPanelOpen}
             deviceDirectory={deviceDirectory}
             onDeviceNavigate={onDeviceNavigate}
             isDark={isDark}
@@ -924,17 +906,19 @@ export function AppShell({
               setActiveTopPanel(null);
               setMobileUtilitiesOpen(false);
               setRightPanelOpen(false);
+              setMobileWorkspaceView("sessions");
               setSidebarOpen(true);
             }}
             onRefresh={() => {
               setRefreshKey((key) => key + 1);
               setExplorerRefreshKey((key) => key + 1);
             }}
-            onToggleFiles={() => {
+            onOpenFiles={() => {
               setActiveTopPanel(null);
               setMobileUtilitiesOpen(false);
-              setSidebarOpen(false);
-              setRightPanelOpen((open) => !open);
+              setRightPanelOpen(false);
+              setMobileWorkspaceView("files");
+              setSidebarOpen(true);
             }}
             onViewHistory={handleViewFullHistory}
             onToggleTheme={() => toggleTheme()}
@@ -945,6 +929,11 @@ export function AppShell({
               setMobileUtilitiesOpen(true);
             }}
             onRunSelfCheck={() => setMobileDebugOpen(true)}
+            settingsAvailable={Boolean(activeCwd || selectedSession?.cwd || newSessionCwd)}
+            onOpenModels={() => setModelsConfigOpen(true)}
+            onOpenSkills={() => setSkillsConfigOpen(true)}
+            onOpenPlugins={() => setPluginsConfigOpen(true)}
+            onOpenExtensions={() => setExtensionsConfigOpen(true)}
           />
         )}
         {/* Top bar with sidebar toggle */}

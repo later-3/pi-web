@@ -13,7 +13,7 @@
 | 上游合并提交 | `422194f` |
 | Pi SDK | `0.83.0` |
 | Node.js 下限 | `22.19.0` |
-| 当前验证 | TypeScript、ESLint、`313/313` Node tests、移动 UI 静态检查通过；公网登录、按需单次设备检查、结构化设备不可达、`linux-home unavailable → mac-main` 无清 Cookie 恢复与两端模型 API 通过 |
+| 当前验证 | TypeScript、ESLint、`314/314` Node tests、移动 UI `50/50` 静态检查通过；公网登录、按需单次设备检查、结构化设备不可达、`linux-home unavailable → mac-main` 无清 Cookie 恢复与两端模型 API 通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
 
 ## 当前自研能力
@@ -22,7 +22,7 @@
 2. PWA 安装、离线提示、版本化静态缓存和 iOS 安全区适配。
 3. 应用内多账号登录、签名 HttpOnly Cookie、会话过期恢复。
 4. Agent 完成后的 Web Push、订阅验证和失效订阅清理。
-5. 移动端 Session/工作区导航、键盘视口修正和设置面板布局。
+5. 移动端全屏工作区浏览器、Session/文件双页签、逐级目录导航、键盘视口修正和设置面板布局。
 6. Extension 全局/Session 开关与 Provider Request 结构化查看。
 7. Chat 执行转录只读浏览、受保护的 Session/文件访问与运行状态恢复。
 8. production/relay 安装、启停、日志和端到端验证脚本。
@@ -133,6 +133,14 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 5. 生产部署：Mac build id `jJfOKdo__rBFBSpB6xUz2`，旧 build `1_SQOzCGm7VQ1JzKEHqWa` 保存在 `.next-mobile-backup-pre-on-demand-device-check-20260802T053508Z`；production PID `57712`、`runs=1`，`30141` listener 与 PID 一致。HTTP relay 原 plist 备份为 `~/Library/LaunchAgents/com.later.pi-web.cloud-relay.plist.pre-self-healing-20260802T053008Z`。
 6. 验证证据：TypeScript、ESLint、shell syntax 与显式 `.test.mjs` `313/313` 通过；候选 build 先在 `30142` 完成登录、目录、运行任务和 health 验证，确认正式运行任务为 0 后原子切换。公网已登录 root=`200` 且引用新 chunk，directory=`200/current=mac-main`、Mac health=`200 online`、Linux health=`503 device_offline`。
 7. 当前外部状态：全链路 `22` 项中 Mac、云端 Nginx、cloudflared、控制面和公网 Mac 路由均通过；`4` 个失败与 `1` 个警告只对应仍不可达的 Linux 管理/HTTP relay、直连和 Linux Cookie。Linux 恢复后仍需部署兼容 build。
+
+## 2026-08-04 移动工作区与云端不可达语义
+
+1. 移动端侧栏改为全宽工作区浏览器，Session/文件分成两个页签；Session 增加搜索，文件改为带面包屑的逐级目录导航，并提供 All/Changed 过滤和不低于 `44px` 的触控操作。
+2. Models、Skills、Plugins、Extensions 与移动自检移入顶栏溢出菜单，避免在有限高度内和文件列表争抢空间；桌面端原有树形文件浏览保持不变。
+3. 用户看到“所有 Pi Web 设备都离线”时，Mac 本机 production 与 `127.0.0.1:30141` 实际正常，云端 `33041` listener 缺失；直接故障是 Mac 到云端的 reverse SSH relay，不是 Mac 物理离线。确认运行 Session 为 `0` 后定向重启 Mac production/relay，`33041`、公网默认路由和 Mac Cookie 路由恢复 `200`。
+4. 云端故障页改为“云端暂时无法连接执行设备”，并明确设备本身可能仍在线；Nginx release `20260804T002352Z` 已通过自动备份、`nginx -t` 和 reload 部署。Linux 当前仍不可达，但不再影响 Mac 默认入口。
+5. 验证证据：TypeScript、ESLint、移动 UI 静态检查 `50/50`、显式 `.test.mjs` `314/314` 与 `git diff --check` 全部通过；云端 Nginx `active` 且安装配置包含新故障语义。
 
 ## 下一次更新本文件时至少记录
 

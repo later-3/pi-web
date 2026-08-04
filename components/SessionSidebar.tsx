@@ -25,6 +25,7 @@ function ToolbarIconButton({
   background = "none",
   marginRight,
   ariaPressed,
+  size = 26,
   children,
 }: {
   onClick: () => void;
@@ -35,6 +36,7 @@ function ToolbarIconButton({
   background?: string;
   marginRight?: number;
   ariaPressed?: boolean;
+  size?: number;
   children: ReactNode;
 }) {
   const enter = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -57,7 +59,7 @@ function ToolbarIconButton({
       style={{
         position: "relative",
         display: "flex", alignItems: "center", justifyContent: "center",
-        width: 26, height: 26, padding: 0, marginRight,
+        width: size, height: size, padding: 0, marginRight,
         background,
         border: "none",
         color,
@@ -92,7 +94,12 @@ interface Props {
   onExplorerRefresh?: () => void;
   onAtMention?: (relativePath: string, isDir: boolean) => void;
   onAtMentions?: (relativePaths: string[]) => void;
+  mobileView?: MobileWorkspaceView;
+  onMobileViewChange?: (view: MobileWorkspaceView) => void;
+  onRequestClose?: () => void;
 }
+
+export type MobileWorkspaceView = "sessions" | "files";
 
 interface WorktreeEntry {
   path: string;
@@ -386,9 +393,11 @@ function PiWebTitle() {
   );
 }
 
-export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, onReady, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, explorerRefreshKey, onExplorerRefresh, onAtMention, onAtMentions }: Props) {
+export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, onReady, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, explorerRefreshKey, onExplorerRefresh, onAtMention, onAtMentions, mobileView = "sessions", onMobileViewChange, onRequestClose }: Props) {
   const { t } = useI18n();
+  const isMobile = useIsMobile();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
+  const [sessionFilter, setSessionFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
@@ -868,8 +877,17 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         }
       : null);
 
+  const normalizedSessionFilter = sessionFilter.trim().toLowerCase();
+  const visibleSessions = normalizedSessionFilter
+    ? filteredSessions.filter((session) => {
+        const searchable = `${session.name ?? ""}\n${session.firstMessage ?? ""}`.toLowerCase();
+        return searchable.includes(normalizedSessionFilter);
+      })
+    : filteredSessions;
+
   // Build parent-child tree within the filtered set
-  const sessionTree = buildSessionTree(filteredSessions);
+  const sessionTree = buildSessionTree(visibleSessions);
+  const explorerCwd = selectedCwd ?? selectedCwdProp;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -886,15 +904,43 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       )}
       {/* Header */}
       <div
+        className={isMobile ? "mobile-workspace-browser-header" : undefined}
         style={{
-          padding: "12px 10px 10px",
+          padding: isMobile ? "0 12px 12px" : "12px 10px 10px",
           borderBottom: "1px solid var(--border)",
           flexShrink: 0,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <PiWebTitle />
-          <div style={{ display: "flex", gap: 6 }}>
+        {isMobile ? (
+          <>
+            <div className="mobile-workspace-browser-titlebar">
+              <div>
+                <strong>{t("mobile.workspace")}</strong>
+                {explorerCwd && <PathLabel text={displayCwd(explorerCwd, homeDir)} />}
+              </div>
+              <button type="button" className="mobile-icon-button" onClick={onRequestClose} aria-label={t("mobile.closeWorkspace")}>
+                <IconX size={22} stroke={1.8} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="mobile-workspace-tabs" role="tablist" aria-label={t("mobile.workspace")}>
+              {(["sessions", "files"] as MobileWorkspaceView[]).map((view) => (
+                <button
+                  key={view}
+                  type="button"
+                  role="tab"
+                  aria-selected={mobileView === view}
+                  className={mobileView === view ? "is-active" : undefined}
+                  onClick={() => onMobileViewChange?.(view)}
+                >
+                  {view === "sessions" ? t("mobile.sessions") : t("mobile.files")}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <PiWebTitle />
+            <div style={{ display: "flex", gap: 6 }}>
             <button
               onClick={handleNewSession}
               disabled={!selectedCwd}
@@ -973,23 +1019,25 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
               )}
             </button>
           </div>
-        </div>
+          </div>
+        )}
 
         {/* CWD picker */}
         <div ref={dropdownRef} style={{ position: "relative" }}>
           <button
+            className={isMobile ? "mobile-workspace-project-button" : undefined}
             onClick={() => setDropdownOpen((v) => !v)}
             title={selectedProject ?? selectedCwd ?? ""}
             style={{
               width: "100%",
               display: "flex",
               alignItems: "center",
-              padding: "6px 10px",
+              padding: isMobile ? "0 12px" : "6px 10px",
               background: selectedCwd ? "var(--bg-hover)" : "rgba(37,99,235,0.06)",
               border: selectedCwd ? "1px solid var(--border)" : "1px solid rgba(37,99,235,0.4)",
               borderRadius: 7,
               cursor: "pointer",
-              fontSize: 12,
+              fontSize: isMobile ? 14 : 12,
               color: "var(--text)",
               textAlign: "left",
               transition: "border-color 0.15s, background 0.15s",
@@ -1001,7 +1049,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                 style={{
                   flex: 1,
                   fontFamily: "var(--font-mono)",
-                  fontSize: 11,
+                  fontSize: isMobile ? 13 : 11,
                   color: "var(--text)",
                 }}
               />
@@ -1185,6 +1233,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
           return (
             <div ref={wtDropdownRef} style={{ position: "relative", marginTop: 6 }}>
               <button
+                className={isMobile ? "mobile-workspace-worktree-button" : undefined}
                 onClick={() => setWtDropdownOpen((v) => !v)}
                  title={currentWt ? t("sidebar.switchWorktreeTitle", { path: currentWt.path }) : t("sidebar.switchWorktree")}
                 style={{
@@ -1522,7 +1571,21 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       </div>
 
       {/* Session list */}
-      <div style={{ flex: explorerOpen && (selectedCwdProp || selectedCwd) ? "1 1 0" : "1 1 auto", overflowY: "auto", padding: "0", minHeight: 80 }}>
+      {(!isMobile || mobileView === "sessions") && <div
+        className={isMobile ? "mobile-workspace-session-list" : undefined}
+        style={{ flex: isMobile ? "1 1 auto" : explorerOpen && explorerCwd ? "1 1 0" : "1 1 auto", overflowY: "auto", padding: "0", minHeight: 80 }}
+      >
+        {isMobile && (
+          <div className="mobile-session-search">
+            <input
+              type="search"
+              value={sessionFilter}
+              onChange={(event) => setSessionFilter(event.target.value)}
+              placeholder={t("mobile.searchSessions")}
+              aria-label={t("mobile.searchSessions")}
+            />
+          </div>
+        )}
         {loading && (
           <div style={{ padding: "16px 14px", color: "var(--text-muted)", fontSize: 12 }}>
             {t("sidebar.loading")}
@@ -1533,9 +1596,9 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             {error}
           </div>
         )}
-        {!loading && !error && filteredSessions.length === 0 && (
+        {!loading && !error && visibleSessions.length === 0 && (
           <div style={{ padding: "16px 14px", color: "var(--text-muted)", fontSize: 12 }}>
-            {t("sidebar.noSessions")}
+            {normalizedSessionFilter ? t("mobile.noMatchingSessions") : t("sidebar.noSessions")}
           </div>
         )}
         {sessionTree.map((node) => (
@@ -1554,21 +1617,84 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             depth={0}
           />
         ))}
-      </div>
+      </div>}
 
       {/* File Explorer section */}
-      {(selectedCwdProp || selectedCwd) && (
+      {explorerCwd && (!isMobile || mobileView === "files") && (
         <div
+          className={isMobile ? "mobile-workspace-file-browser" : undefined}
           style={{
             borderTop: "1px solid var(--border)",
             display: "flex",
             flexDirection: "column",
-            flex: explorerOpen ? "1 1 0" : "0 0 auto",
+            flex: isMobile || explorerOpen ? "1 1 0" : "0 0 auto",
             minHeight: 0,
             overflow: "hidden",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+          {isMobile ? (
+            <div className="mobile-workspace-file-toolbar">
+              <div className="mobile-file-filter" role="tablist" aria-label={t("mobile.files")}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={changesCollapsed}
+                  className={changesCollapsed ? "is-active" : undefined}
+                  onClick={() => setChangesCollapsed(true)}
+                >
+                  {t("mobile.allFiles")}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={!changesCollapsed}
+                  className={!changesCollapsed ? "is-active" : undefined}
+                  disabled={changesCount === 0}
+                  onClick={() => setChangesCollapsed(false)}
+                >
+                  {t("mobile.changedFiles")}{changesCount > 0 ? ` ${changesCount}` : ""}
+                </button>
+              </div>
+              <ToolbarIconButton
+                onClick={() => fileExplorerRef.current?.openUploadPicker()}
+                disabled={explorerUploadBusy}
+                title={t("sidebar.uploadFilesTitle")}
+                color="var(--text-dim)"
+                size={44}
+              >
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <path d="m17 8-5-5-5 5" />
+                  <path d="M12 3v12" />
+                </svg>
+              </ToolbarIconButton>
+              <ToolbarIconButton
+                onClick={() => {
+                  if (onExplorerRefresh) onExplorerRefresh();
+                  else setExplorerKey((key) => key + 1);
+                  setExplorerRefreshDone(true);
+                  if (explorerRefreshTimerRef.current) clearTimeout(explorerRefreshTimerRef.current);
+                  explorerRefreshTimerRef.current = setTimeout(() => setExplorerRefreshDone(false), 2000);
+                }}
+                title={t("sidebar.refreshExplorer")}
+                skipHover={explorerRefreshDone}
+                color={explorerRefreshDone ? "#4ade80" : "var(--text-dim)"}
+                background={explorerRefreshDone ? "rgba(74,222,128,0.18)" : "none"}
+                size={44}
+              >
+                {explorerRefreshDone ? (
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                ) : (
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                  </svg>
+                )}
+              </ToolbarIconButton>
+            </div>
+          ) : <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
             <button
               onClick={() => setExplorerOpen((v) => !v)}
               style={{
@@ -1651,12 +1777,12 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                 </svg>
               )}
             </ToolbarIconButton>
-          </div>
-          {explorerOpen && (
+          </div>}
+          {(isMobile || explorerOpen) && (
             <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
               <FileExplorer
                 ref={fileExplorerRef}
-                cwd={selectedCwd ?? selectedCwdProp!}
+                cwd={explorerCwd}
                 onOpenFile={onOpenFile ?? (() => {})}
                 refreshKey={explorerKey}
                 onAtMention={onAtMention}
@@ -1664,10 +1790,14 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                 onUploadBusyChange={setExplorerUploadBusy}
                 changesCollapsed={changesCollapsed}
                 onChangesCountChange={setChangesCount}
+                navigationMode={isMobile ? "drilldown" : "tree"}
               />
             </div>
           )}
         </div>
+      )}
+      {isMobile && mobileView === "files" && !explorerCwd && (
+        <div className="mobile-workspace-empty-state">{t("workspace.selectProject")}</div>
       )}
     </div>
   );

@@ -19,10 +19,10 @@ All features share the same `AppShell` / `ChatWindow` / `ChatInput` / `useAgentS
 
 | Feature | Desktop Entry | Mobile Entry | Status |
 |---------|--------------|--------------|--------|
-| **Session list / sidebar** | Left sidebar (260px) | Complete overlay drawer | ✅ |
+| **Session list / sidebar** | Left sidebar (260px) | Full-width workspace browser with a dedicated Sessions tab | ✅ |
 | **New session** | Sidebar "+" button | Persistent header `+` and the same button in the overlay drawer | ✅ |
-| **Session select** | Click in sidebar | Same list in the overlay drawer | ✅ |
-| **Project select** | Sidebar selector | Project control in the mobile header → full drawer | ✅ |
+| **Session select** | Click in sidebar | Searchable list in the full-width workspace browser | ✅ |
+| **Project select** | Sidebar selector | Project control in the mobile header → full-width workspace browser | ✅ |
 | **Manual refresh** | Sidebar refresh | Mobile overflow sheet header refresh for sessions + files | ✅ |
 | **Execution device** | Desktop top-bar selector | Persistent header device pill → dedicated bottom sheet; target reached in 2 taps | ✅ |
 | **Session rename / delete** | Hover actions in sidebar | Per-session touch action sheet | ✅ |
@@ -47,15 +47,16 @@ All features share the same `AppShell` / `ChatWindow` / `ChatInput` / `useAgentS
 | **Session stats** | Top bar stats button → popover | Same (icon + tap → popover) | ✅ |
 | **Full history** | Top bar "Full history" button | Same (icon-only on mobile) | ✅ |
 | **Auto-name** | Top bar "Generate title" button | Same (icon-only on mobile) | ✅ |
-| **File viewer** | Right panel (42% width) | Full-screen overlay panel | ✅ |
+| **File browser** | Expandable tree in the sidebar | Dedicated Files tab with full-row folder drill-down, breadcrumbs, and All/Changed filters | ✅ |
+| **File viewer** | Right panel (42% width) | Full-screen overlay panel opened from the file browser | ✅ |
 | **File mention / download** | File-tree hover actions | Per-file touch action sheet | ✅ |
 | **File panel toggle** | Fixed top-right button | Same (safe-area aware, 44px) | ✅ |
 | **File tabs** | TabBar in right panel header | Same | ✅ |
 | **Worktrees** | Sidebar project section | Same | ✅ |
-| **Models config** | Sidebar bottom "Models" button | Same (44px touch target) | ✅ |
-| **Skills config** | Sidebar bottom "Skills" button | Same (44px touch target) | ✅ |
-| **Plugins config** | Sidebar bottom "Plugins" button | Same (44px touch target) | ✅ |
-| **Extensions config** | Sidebar bottom "Ext" button | Same (44px touch target) | ✅ |
+| **Models config** | Sidebar bottom "Models" button | Mobile overflow menu | ✅ |
+| **Skills config** | Sidebar bottom "Skills" button | Mobile overflow menu | ✅ |
+| **Plugins config** | Sidebar bottom "Plugins" button | Mobile overflow menu | ✅ |
+| **Extensions config** | Sidebar bottom "Ext" button | Mobile overflow menu | ✅ |
 | **Auth (OAuth/API key)** | ModelsConfig modal | Same modal | ✅ |
 | **Theme toggle** | Top bar sun/moon button | Same (44px touch target) | ✅ |
 | **Drag & drop images** | Drop onto chat area | Use the same image attachment picker (native mobile alternative) | ✅ |
@@ -67,7 +68,8 @@ All features share the same `AppShell` / `ChatWindow` / `ChatInput` / `useAgentS
 
 ## Mobile Shell
 
-- The compact header opens the complete sidebar drawer for project and session selection; the chat surface does not duplicate session navigation.
+- The compact header opens a full-width workspace browser below the persistent header. Sessions and files use separate tabs, so neither list loses vertical space to the other.
+- The mobile Files tab drills into one directory at a time. A 44px parent control and horizontally scrollable breadcrumbs preserve path context without deep tree indentation.
 - Running state still comes from `/api/agent/running/events`, and all chat work stays on the shared `ChatWindow` / `useAgentSession` stack.
 - The mobile overflow sheet exposes projects/sessions, files, full history, theme, advanced session controls, and self-check without restoring the desktop toolbar to the primary screen.
 - Multi-device installations expose the current execution device beside the project control. Its dedicated sheet keeps the current device disabled, commits visible switching feedback before the workspace transition, traps focus, closes on Escape/backdrop, and restores focus to the trigger.
@@ -76,10 +78,12 @@ All features share the same `AppShell` / `ChatWindow` / `ChatInput` / `useAgentS
 ## Drawer Mutual Exclusion
 
 On mobile, only one overlay panel can be open at a time:
-- Opening sidebar → closes right panel + top panel dropdowns
+- Opening workspace browser → closes right panel + top panel dropdowns
 - Opening right panel (file viewer) → closes sidebar + top panel dropdowns
 - Opening a top panel dropdown → closes sidebar + right panel
-- Selecting a session/project in sidebar → auto-closes sidebar
+- Selecting a session/project in the workspace browser → returns to chat
+
+When every backend tunnel is unavailable, the cloud-owned recovery page says the gateway cannot reach an execution device. It must not claim that the physical Mac or Linux device is offline, because the local service may still be healthy while only the reverse SSH relay is down.
 
 ## Horizontal Overflow Prevention
 
@@ -93,6 +97,6 @@ On mobile, only one overlay panel can be open at a time:
 - The mobile sidebar exposes **Run mobile self-check**, so the same live checks can be opened from an installed PWA without an address bar
 - Select or create a session before running it; missing topbar/textarea/composer elements are reported as failures rather than silently skipped
 - `scripts/verify-mobile-ui.mjs` validates CSS breakpoint consistency (no dependencies)
-- `rg --files -g '*.test.mjs' -0 | xargs -0 node --test` — all 260 tests pass
+- `rg --files -g '*.test.mjs' -0 | xargs -0 node --test` — all 314 tests pass
 - `tsc --noEmit` — zero type errors
 - `npm run lint` — zero lint errors

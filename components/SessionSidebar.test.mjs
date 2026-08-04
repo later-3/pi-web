@@ -24,3 +24,11 @@ test("polls running sessions only while the tab is visible", () => {
   assert.match(source, /document\.visibilityState !== "visible"/);
   assert.match(source, /document\.addEventListener\("visibilitychange", onVisibilityChange\)/);
 });
+
+test("mobile workspace separates sessions from drill-down file browsing", () => {
+  assert.match(source, /export type MobileWorkspaceView = "sessions" \| "files"/);
+  assert.match(source, /mobileView === "sessions"/);
+  assert.match(source, /mobileView === "files"/);
+  assert.match(source, /navigationMode=\{isMobile \? "drilldown" : "tree"\}/);
+  assert.match(source, /className="mobile-session-search"/);
+});

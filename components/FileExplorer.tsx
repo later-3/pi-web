@@ -13,7 +13,7 @@ import {
 import type { GitFileStatus, GitFileStatusKind, GitStatusResponse } from "@/lib/git-types";
 import { useI18n } from "@/hooks/useI18n";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { IconAt, IconDotsVertical, IconDownload, IconX } from "@tabler/icons-react";
+import { IconAt, IconChevronLeft, IconChevronRight, IconDotsVertical, IconDownload, IconX } from "@tabler/icons-react";
 
 type Translate = ReturnType<typeof useI18n>["t"];
 
@@ -42,6 +42,7 @@ interface Props {
   onUploadBusyChange?: (busy: boolean) => void;
   changesCollapsed: boolean;
   onChangesCountChange?: (count: number) => void;
+  navigationMode?: "tree" | "drilldown";
 }
 
 export interface FileExplorerHandle {
@@ -194,13 +195,14 @@ function MentionIcon({ size = 11 }: { size?: number }) {
 }
 
 function DismissButton({ onClick, title }: { onClick: () => void; title: string }) {
+  const isMobile = useIsMobile();
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
       aria-label={title}
-      style={{ width: 24, height: 24, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: "none", borderRadius: 4, background: "none", color: "var(--text-dim)", cursor: "pointer" }}
+      style={{ width: isMobile ? 44 : 24, height: isMobile ? 44 : 24, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: "none", borderRadius: isMobile ? 8 : 4, background: "none", color: "var(--text-dim)", cursor: "pointer" }}
       onMouseEnter={(event) => { event.currentTarget.style.color = "var(--text-muted)"; event.currentTarget.style.background = "var(--bg-hover)"; }}
       onMouseLeave={(event) => { event.currentTarget.style.color = "var(--text-dim)"; event.currentTarget.style.background = "none"; }}
     >
@@ -438,8 +440,8 @@ function TreeNode({
               event.stopPropagation();
               setMobileActionsOpen(true);
             }}
-            aria-label={`File actions for ${node.name}`}
-            title="File actions"
+            aria-label={t("files.actionsFor", { name: node.name })}
+            title={t("files.actions")}
             style={{
               width: 44,
               height: 44,
@@ -467,13 +469,13 @@ function TreeNode({
                 event.stopPropagation();
                 setMobileActionsOpen(false);
               }}
-              aria-label="Close file actions"
+              aria-label={t("files.closeActions")}
             />
-            <div className="mobile-action-sheet" role="dialog" aria-modal="true" aria-label={`File actions for ${node.name}`}>
+            <div className="mobile-action-sheet" role="dialog" aria-modal="true" aria-label={t("files.actionsFor", { name: node.name })}>
               <div className="mobile-action-sheet-header">
                 <div>
                   <strong>{node.name}</strong>
-                  <span>{node.isDir ? "Folder" : "File"}</span>
+                  <span>{node.isDir ? t("files.folder") : t("files.file")}</span>
                 </div>
                 <button
                   type="button"
@@ -482,7 +484,7 @@ function TreeNode({
                     event.stopPropagation();
                     setMobileActionsOpen(false);
                   }}
-                  aria-label="Close file actions"
+                  aria-label={t("files.closeActions")}
                 >
                   <IconX size={22} stroke={1.8} aria-hidden="true" />
                 </button>
@@ -498,7 +500,7 @@ function TreeNode({
                     }}
                   >
                     <IconAt size={21} stroke={1.7} aria-hidden="true" />
-                    <span>Insert into chat</span>
+                    <span>{t("files.insertChat")}</span>
                   </button>
                 )}
                 {!node.isDir && (
@@ -511,7 +513,7 @@ function TreeNode({
                     }}
                   >
                     <IconDownload size={21} stroke={1.7} aria-hidden="true" />
-                    <span>Download file</span>
+                    <span>{t("files.downloadFile")}</span>
                   </a>
                 )}
               </div>
@@ -549,6 +551,103 @@ function TreeNode({
   );
 }
 
+function MobileFileRow({
+  node,
+  cwd,
+  onOpenFile,
+  onOpenDirectory,
+  onAtMention,
+  highlighted,
+  gitStatus,
+  containsGitChanges,
+  t,
+}: {
+  node: FileNode;
+  cwd: string;
+  onOpenFile: OpenFileHandler;
+  onOpenDirectory: (path: string) => void;
+  onAtMention?: (relativePath: string, isDir: boolean) => void;
+  highlighted: boolean;
+  gitStatus?: GitFileStatus;
+  containsGitChanges: boolean;
+  t: Translate;
+}) {
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const handleOpen = () => {
+    if (node.isDir) onOpenDirectory(node.fullPath);
+    else onOpenFile(node.fullPath, node.name);
+  };
+
+  return (
+    <div className="mobile-file-row">
+      <button type="button" className="mobile-file-row-primary" onClick={handleOpen} title={node.fullPath}>
+        <span className="mobile-file-row-icon" aria-hidden="true">
+          {node.isDir ? <FolderIcon size={20} open={false} /> : getFileIcon(node.name, 20)}
+        </span>
+        <span className="mobile-file-row-label">{node.name}</span>
+        {highlighted && <span className="mobile-file-highlight" title={t("files.newlyUploaded")} aria-label={t("files.newlyUploaded")} />}
+        {gitStatus && <GitStatusBadge status={gitStatus} t={t} />}
+        {!gitStatus && containsGitChanges && <span className="mobile-file-changed-dot" title={t("files.containsChangedFiles")} aria-label={t("files.containsChangedFiles")} />}
+        {node.isDir && <IconChevronRight size={20} stroke={1.8} aria-hidden="true" />}
+      </button>
+      <button
+        type="button"
+        className="mobile-file-row-actions"
+        onClick={() => setMobileActionsOpen(true)}
+        aria-label={t("files.actionsFor", { name: node.name })}
+        title={t("files.actions")}
+      >
+        <IconDotsVertical size={20} stroke={1.8} aria-hidden="true" />
+      </button>
+      {mobileActionsOpen && (
+        <>
+          <button
+            type="button"
+            className="mobile-action-backdrop"
+            onClick={() => setMobileActionsOpen(false)}
+            aria-label={t("files.closeActions")}
+          />
+          <div className="mobile-action-sheet" role="dialog" aria-modal="true" aria-label={t("files.actionsFor", { name: node.name })}>
+            <div className="mobile-action-sheet-header">
+              <div>
+                <strong>{node.name}</strong>
+                <span>{node.isDir ? t("files.folder") : t("files.file")}</span>
+              </div>
+              <button type="button" className="mobile-icon-button" onClick={() => setMobileActionsOpen(false)} aria-label={t("files.closeActions")}>
+                <IconX size={22} stroke={1.8} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="mobile-action-grid">
+              {onAtMention && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileActionsOpen(false);
+                    onAtMention(getRelativeFilePath(node.fullPath, cwd), node.isDir);
+                  }}
+                >
+                  <IconAt size={21} stroke={1.7} aria-hidden="true" />
+                  <span>{t("files.insertChat")}</span>
+                </button>
+              )}
+              {!node.isDir && (
+                <a
+                  href={`/api/files/${encodeFilePathForApi(node.fullPath)}?type=download`}
+                  download
+                  onClick={() => setMobileActionsOpen(false)}
+                >
+                  <IconDownload size={21} stroke={1.7} aria-hidden="true" />
+                  <span>{t("files.downloadFile")}</span>
+                </a>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 type OpenFileOptions = { sourceSessionId?: string | null; modeHint?: "diff" };
 
 type OpenFileHandler = (filePath: string, fileName: string, options?: OpenFileOptions) => void;
@@ -564,35 +663,42 @@ function ChangeRow({
   onOpenFile: OpenFileHandler;
   t: Translate;
 }) {
+  const isMobile = useIsMobile();
   const [hovered, setHovered] = useState(false);
   const name = getFileName(status.filePath);
   const rel = getRelativeFilePath(status.filePath, cwd);
   return (
-    <div
+    <button
+      type="button"
       onClick={() => onOpenFile(status.filePath, name, { modeHint: "diff" })}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       title={status.filePath}
       style={{
         display: "flex",
+        width: "100%",
         alignItems: "center",
         gap: 6,
-        paddingLeft: 10,
-        paddingRight: 8,
-        height: 24,
+        paddingLeft: isMobile ? 14 : 10,
+        paddingRight: isMobile ? 12 : 8,
+        height: isMobile ? 52 : 24,
         cursor: "pointer",
         background: hovered ? "var(--bg-hover)" : "transparent",
+        border: "none",
         borderRadius: 4,
+        color: "inherit",
+        font: "inherit",
+        textAlign: "left",
         userSelect: "none",
       }}
     >
       <GitStatusBadge status={status} t={t} />
       <span style={{ flexShrink: 0, display: "flex", alignItems: "center", opacity: 0.85 }}>
-        {getFileIcon(name, 13)}
+        {getFileIcon(name, isMobile ? 18 : 13)}
       </span>
       <span
         style={{
-          fontSize: 12,
+          fontSize: isMobile ? 14 : 12,
           color: "var(--text)",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -602,7 +708,7 @@ function ChangeRow({
       >
         {rel}
       </span>
-    </div>
+    </button>
   );
 }
 
@@ -615,6 +721,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
   onUploadBusyChange,
   changesCollapsed,
   onChangesCountChange,
+  navigationMode = "tree",
 }, ref) {
   const { t } = useI18n();
   const [roots, setRoots] = useState<FileNode[]>([]);
@@ -630,10 +737,13 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null);
   const [pendingConflict, setPendingConflict] = useState<PendingConflict | null>(null);
+  const [currentDirectory, setCurrentDirectory] = useState(cwd);
   const prevCwdRef = useRef<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const refreshToken = `${refreshKey ?? 0}:${treeRefreshKey}`;
   const uploadBusy = uploadPhase !== "idle";
+  const isDrilldown = navigationMode === "drilldown";
+  const listingDirectory = isDrilldown ? currentDirectory : cwd;
 
   const gitStatusByPath = useMemo(() => new Map(
     gitFiles.map((status) => [normalizeFilePathSlashes(status.filePath), status]),
@@ -670,10 +780,10 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
     setUploadSummary({ uploaded, skipped, errors });
 
     if (uploaded.length > 0) {
-      setHighlightedPaths(new Set(uploaded.map((name) => joinFilePath(cwd, name))));
+      setHighlightedPaths(new Set(uploaded.map((name) => joinFilePath(listingDirectory, name))));
       setTreeRefreshKey((key) => key + 1);
     }
-  }, [cwd]);
+  }, [listingDirectory]);
 
   const performUpload = useCallback(async (
     files: File[],
@@ -685,7 +795,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
     setUploadPhase("uploading");
 
     try {
-      const { status, data } = await uploadFiles(cwd, files, strategy, setUploadProgress);
+      const { status, data } = await uploadFiles(listingDirectory, files, strategy, setUploadProgress);
       if (status === 409 && data.conflicts?.length) {
         setPendingConflict({
           files,
@@ -704,7 +814,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
     } finally {
       setUploadPhase("idle");
     }
-  }, [applyUploadResult, cwd]);
+  }, [applyUploadResult, listingDirectory]);
 
   const prepareUpload = useCallback(async (files: File[]) => {
     if (files.length === 0 || uploadBusy) return;
@@ -717,7 +827,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
 
     try {
       const res = await fetch(
-        `/api/files/${encodeFilePathForApi(cwd)}?type=upload-check`,
+        `/api/files/${encodeFilePathForApi(listingDirectory)}?type=upload-check`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -742,7 +852,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
     } finally {
       setUploadPhase("idle");
     }
-  }, [cwd, performUpload, uploadBusy]);
+  }, [listingDirectory, performUpload, uploadBusy]);
 
   const handleUploadInput = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
@@ -763,6 +873,10 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
   useEffect(() => () => onUploadBusyChange?.(false), [onUploadBusyChange]);
 
   useEffect(() => {
+    setCurrentDirectory(cwd);
+  }, [cwd]);
+
+  useEffect(() => {
     const cwdChanged = prevCwdRef.current !== cwd;
     prevCwdRef.current = cwd;
 
@@ -775,15 +889,15 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
       setUploadError(null);
     }
 
-    setLoading(cwdChanged);
+    setLoading(cwdChanged || isDrilldown);
     setError(null);
     let cancelled = false;
-    fetchEntries(cwd)
+    fetchEntries(listingDirectory)
       .then((entries) => { if (!cancelled) setRoots(entries); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [cwd, refreshKey, treeRefreshKey]);
+  }, [cwd, isDrilldown, listingDirectory, refreshKey, treeRefreshKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -814,9 +928,28 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
   const addUploadedFilesToChat = useCallback(() => {
     if (!uploadSummary || uploadSummary.uploaded.length === 0) return;
     onAtMentions?.(
-      uploadSummary.uploaded.map((name) => getRelativeFilePath(joinFilePath(cwd, name), cwd)),
+      uploadSummary.uploaded.map((name) => getRelativeFilePath(joinFilePath(listingDirectory, name), cwd)),
     );
-  }, [cwd, onAtMentions, uploadSummary]);
+  }, [cwd, listingDirectory, onAtMentions, uploadSummary]);
+
+  const breadcrumbs = useMemo(() => {
+    const root = normalizeFilePathSlashes(cwd).replace(/\/$/, "");
+    const current = normalizeFilePathSlashes(currentDirectory).replace(/\/$/, "");
+    const crumbs = [{ label: getFileName(root) || root, path: root }];
+    if (!isDrilldown || current === root || !current.startsWith(`${root}/`)) return crumbs;
+    let path = root;
+    for (const part of current.slice(root.length + 1).split("/").filter(Boolean)) {
+      path = joinFilePath(path, part);
+      crumbs.push({ label: part, path });
+    }
+    return crumbs;
+  }, [currentDirectory, cwd, isDrilldown]);
+
+  const goToParentDirectory = useCallback(() => {
+    const root = normalizeFilePathSlashes(cwd).replace(/\/$/, "");
+    const parent = normalizeFilePathSlashes(getFileDirectory(currentDirectory)).replace(/\/$/, "");
+    if (parent === root || parent.startsWith(`${root}/`)) setCurrentDirectory(parent);
+  }, [currentDirectory, cwd]);
 
   return (
     <div style={{ minHeight: "100%" }}>
@@ -857,14 +990,14 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
                 {t("files.cannotReplace", { files: pendingConflict.nonReplaceable.join(", ") })}
               </div>
             )}
-            <div style={{ display: "flex", gap: 5, marginTop: 7 }}>
-              <button type="button" onClick={() => void performUpload(pendingConflict.files, "overwrite")} style={{ height: 22, padding: "0 7px", border: "1px solid #ef4444", borderRadius: 4, background: "transparent", color: "#ef4444", cursor: "pointer", fontSize: 10 }}>
+            <div style={{ display: "flex", gap: isDrilldown ? 8 : 5, marginTop: 7, flexWrap: "wrap" }}>
+              <button type="button" onClick={() => void performUpload(pendingConflict.files, "overwrite")} style={{ height: isDrilldown ? 40 : 22, padding: isDrilldown ? "0 12px" : "0 7px", border: "1px solid #ef4444", borderRadius: isDrilldown ? 8 : 4, background: "transparent", color: "#ef4444", cursor: "pointer", fontSize: isDrilldown ? 13 : 10 }}>
                 {t("files.replace")}
               </button>
-              <button type="button" onClick={() => void performUpload(pendingConflict.files, "skip")} style={{ height: 22, padding: "0 7px", border: "1px solid var(--border)", borderRadius: 4, background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: 10 }}>
+              <button type="button" onClick={() => void performUpload(pendingConflict.files, "skip")} style={{ height: isDrilldown ? 40 : 22, padding: isDrilldown ? "0 12px" : "0 7px", border: "1px solid var(--border)", borderRadius: isDrilldown ? 8 : 4, background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: isDrilldown ? 13 : 10 }}>
                 {t("files.skipExisting")}
               </button>
-              <button type="button" onClick={() => setPendingConflict(null)} style={{ height: 22, padding: "0 7px", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer", fontSize: 10 }}>
+              <button type="button" onClick={() => setPendingConflict(null)} style={{ height: isDrilldown ? 40 : 22, padding: isDrilldown ? "0 12px" : "0 7px", border: "none", borderRadius: isDrilldown ? 8 : 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer", fontSize: isDrilldown ? 13 : 10 }}>
                 {t("files.cancel")}
               </button>
             </div>
@@ -916,7 +1049,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
                   onClick={addUploadedFilesToChat}
                   title={uploadSummary.uploaded.length === 1 ? t("files.addUploadedFile") : t("files.addAllUploadedFiles")}
                   aria-label={uploadSummary.uploaded.length === 1 ? t("files.addUploadedFile") : t("files.addAllUploadedFiles")}
-                  style={{ height: 22, padding: "0 7px", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0, border: "1px solid var(--border)", borderRadius: 4, background: "var(--bg-panel)", color: "var(--accent)", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
+                  style={{ height: isDrilldown ? 40 : 22, padding: isDrilldown ? "0 12px" : "0 7px", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0, border: "1px solid var(--border)", borderRadius: isDrilldown ? 8 : 4, background: "var(--bg-panel)", color: "var(--accent)", cursor: "pointer", fontSize: isDrilldown ? 13 : 11, fontWeight: 600, whiteSpace: "nowrap" }}
                 >
                   <MentionIcon />
                   {t("files.mention")}
@@ -947,7 +1080,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
               additions: gitLineStats.additions,
               deletions: gitLineStats.deletions,
             })}
-            style={{ display: "flex", alignItems: "center", gap: 6, height: 24, padding: "0 10px", fontSize: 12 }}
+            style={{ display: "flex", alignItems: "center", gap: 6, height: isDrilldown ? 40 : 24, padding: "0 10px", fontSize: isDrilldown ? 13 : 12 }}
           >
             <span style={{ color: "var(--text-dim)" }}>
               {t("files.changedCount", { count: gitFiles.length })}
@@ -962,13 +1095,51 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
       )}
 
       {(changesCollapsed || gitFiles.length === 0) && (
-        <div style={{ padding: "2px 4px" }}>
+        <div style={{ padding: isDrilldown ? 0 : "2px 4px" }}>
+          {isDrilldown && (
+            <div className="mobile-file-breadcrumb-bar">
+              <button
+                type="button"
+                className="mobile-file-parent-button"
+                onClick={goToParentDirectory}
+                disabled={normalizeFilePathSlashes(currentDirectory).replace(/\/$/, "") === normalizeFilePathSlashes(cwd).replace(/\/$/, "")}
+                aria-label={t("mobile.goToParent")}
+              >
+                <IconChevronLeft size={21} stroke={1.9} aria-hidden="true" />
+              </button>
+              <div className="mobile-file-breadcrumbs" aria-label={currentDirectory}>
+                {breadcrumbs.map((crumb, index) => (
+                  <button
+                    key={crumb.path}
+                    type="button"
+                    className={index === breadcrumbs.length - 1 ? "is-current" : undefined}
+                    onClick={() => setCurrentDirectory(crumb.path)}
+                  >
+                    {crumb.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {loading ? (
-            <div style={{ padding: "8px 12px", fontSize: 11, color: "var(--text-dim)" }}>Loading files...</div>
+            <div style={{ padding: isDrilldown ? "18px 16px" : "8px 12px", fontSize: isDrilldown ? 14 : 11, color: "var(--text-dim)" }}>{t("files.loading")}</div>
           ) : error ? (
             <div style={{ padding: "8px 12px", fontSize: 11, color: "#f87171" }}>{error}</div>
           ) : (
-            roots.map((node) => (
+            roots.map((node) => isDrilldown ? (
+              <MobileFileRow
+                key={node.fullPath}
+                node={node}
+                cwd={cwd}
+                onOpenFile={onOpenFile}
+                onOpenDirectory={setCurrentDirectory}
+                onAtMention={onAtMention}
+                highlighted={highlightedPaths.has(node.fullPath)}
+                gitStatus={gitStatusByPath.get(normalizeFilePathSlashes(node.fullPath))}
+                containsGitChanges={node.isDir && changedDirectoryPaths.has(normalizeFilePathSlashes(node.fullPath))}
+                t={t}
+              />
+            ) : (
               <TreeNode
                 key={node.fullPath}
                 node={node}
