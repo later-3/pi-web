@@ -12,15 +12,24 @@
 
 `Pi Web 有更新` 不代表 `Pi 有更新`；Pi 源码 `main` 有新提交也不代表 npm 已发布可升级版本。
 
-## 2026-07-31 已验证基线
+## 2026-08-05 已验证基线
 
 | 项目 | 稳定基线 | 判断 |
 |---|---|---|
-| Pi Web | `v0.8.5` / `cbb080d` | 已合入 Later 分支 |
+| Pi Web | `v0.8.6` / `dfab585` | 已合入 Later 分支，merge commit `cb3655e` |
 | Pi npm packages | `0.83.0` | 4 个直接依赖均已是 npm latest |
-| Pi source `main` | 比 `v0.83.0` 多 38 个未发布提交 | 只作为前瞻研究，不进入本次部署 |
+| Pi source `main` | 未发布提交不作为稳定升级候选 | 只作为前瞻研究，不进入本次同步 |
 
-本次 Pi Web v0.8.5 从 v0.8.4 增加 6 个提交，主要内容是：可见模型 pattern、模型配置原子写入、OAuth 与 API-key Provider 双清单、可选的单密码 Basic Auth、俄语 README 和版本发布。Pi 本身没有新的稳定版，因此这次只升级 Pi Web，继续固定 4 个 `@earendil-works/pi-*` 依赖为 `0.83.0`。
+本次 Pi Web v0.8.6 从 v0.8.5 增加 12 个提交，主要内容是：显式新 Session 偏好持久化、Agent SSE 生命周期、API-key 保存、插件/Skill UI、消息开销、Extension 提示音、iOS PWA viewport、Windows drive picker、Safari DOCX 预览和 Session shutdown。Pi 本身没有新的稳定 package，因此这次只升级 Pi Web，继续固定 4 个 `@earendil-works/pi-*` 依赖为 `0.83.0`。
+
+## v0.8.6 冲突决策
+
+| 冲突区域 | 上游价值 | Later 必须保留 | 合并结果 |
+|---|---|---|---|
+| Agent events/API 与 `hooks/useAgentSession.ts` | 事件投影、`agent_settled`、SSE idle grace | Chat 管理 Session 只读、设备不可达分类、单调 run reconciliation | 先做权限检查再复用 runtime；真实连接失败才做一次设备判断，流在 server idle 后关闭 |
+| `lib/rpc-manager.ts` 与 Session 删除 | `session_shutdown`、从 SessionManager 取得规范 cwd | Push audience、Session 级 Extension allow-list、空 Session 幂等删除 | `shutdown()` 后删除并容忍 `ENOENT`；Extension trust 使用规范 cwd，Session override 继续按真实 id 生效 |
+| `app/layout.tsx`、`AppShell`、移动 CSS | iOS standalone/键盘修复与 16px 防缩放 | 768px 全宽工作区、短横屏、安全区、Visual Viewport 阈值 | 保留 Later 单一 viewport hook，吸收 viewport meta、内容约束与防缩放，不恢复 640px 窄 drawer |
+| `package.json` 与 lockfile | 发布版本 `0.8.6` | mobile build、Push、设备 UI 依赖 | 更新 Pi Web 版本；4 个 Pi package 仍为 `0.83.0` |
 
 ## v0.8.5 冲突决策
 

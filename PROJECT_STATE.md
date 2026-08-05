@@ -2,18 +2,18 @@
 
 > 这是随仓库更新的“当前事实页”，不是永久设计说明。每次合入上游、完成重要功能或部署后都要更新。
 
-## 2026-07-31 基线
+## 2026-08-05 基线
 
 | 项目 | 当前值 |
 |---|---|
 | 开发分支 | `codex/later-custom` |
 | Later 远端 | `origin = https://github.com/later-3/pi-web.git`，GitHub 可见性 `PRIVATE` |
 | 上游仓库 | `upstream = https://github.com/agegr/pi-web.git` |
-| 已合入上游 | `upstream/main@cbb080d`，发布版本 `0.8.5` |
-| 上游合并提交 | `422194f` |
+| 已合入上游 | `upstream/main@dfab585`，发布版本 `0.8.6` |
+| 上游合并提交 | `cb3655e` |
 | Pi SDK | `0.83.0` |
 | Node.js 下限 | `22.19.0` |
-| 当前验证 | TypeScript、ESLint、`314/314` Node tests、移动 UI `50/50` 静态检查通过；公网登录、按需单次设备检查、结构化设备不可达、`linux-home unavailable → mac-main` 无清 Cookie 恢复与两端模型 API 通过 |
+| 当前验证 | TypeScript、ESLint、`343/343` Node tests、移动 UI `50/50` 静态检查与 `git diff --check` 通过；本轮未执行 production build 或部署，生产状态仍以 2026-08-04 记录为准 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
 
 ## 当前自研能力
@@ -141,6 +141,14 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 3. 用户看到“所有 Pi Web 设备都离线”时，Mac 本机 production 与 `127.0.0.1:30141` 实际正常，云端 `33041` listener 缺失；直接故障是 Mac 到云端的 reverse SSH relay，不是 Mac 物理离线。确认运行 Session 为 `0` 后定向重启 Mac production/relay，`33041`、公网默认路由和 Mac Cookie 路由恢复 `200`。
 4. 云端故障页改为“云端暂时无法连接执行设备”，并明确设备本身可能仍在线；Nginx release `20260804T002352Z` 已通过自动备份、`nginx -t` 和 reload 部署。移动工作区 production build id `YiObNJqmga67GsqYQEVxW` 已部署到 Mac，Linux 当前仍不可达，但不再影响 Mac 默认入口。
 5. 验证证据：TypeScript、ESLint、移动 UI 静态检查 `50/50`、显式 `.test.mjs` `314/314` 与 `git diff --check` 全部通过；云端 Nginx `active` 且安装配置包含新故障语义。
+
+## 2026-08-05 同步 Pi Web v0.8.6
+
+1. 同步前 `codex/later-custom` 与 `origin/codex/later-custom` 一致且工作区 clean；GitHub 仓库元数据再次确认 `later-3/pi-web` 为 `private`，并建立恢复分支 `backup/later-custom-before-v0.8.6-20260805`。
+2. Pi Web 从 `upstream/main@cbb080d` 合入 `dfab585`（tag `v0.8.6`），共 `12` 个提交；merge commit 为 `cb3655e`。4 个 `@earendil-works/pi-*` 直接依赖仍固定为 `0.83.0`，并与 npm stable latest 一致，因此本轮不升级 Pi SDK。
+3. 人工解决 `9` 个冲突文件：Agent API 保留 Chat 管理 Session 只读边界和登录账号 Push audience，同时采用上游事件投影与 session cwd 解析；RPC/删除流程组合 Session 级 Extension 过滤、幂等删除和上游 `session_shutdown`；前端组合 Later 的设备失败语义、单调 run reconciliation 与上游 `agent_settled`/idle grace。
+4. 移动端继续使用 Later 的 `768px`/短横屏断点、全宽工作区、安全区和带阈值的 Visual Viewport 判定；同时吸收上游 `interactiveWidget=resizes-content`、输入控件 `16px` 防聚焦缩放和内容宽度修复。没有恢复上游较窄的 `640px` drawer，也没有叠加第二套 viewport 监听。
+5. 验证通过：`node_modules/.bin/tsc --noEmit`、`npm run lint`、全部 `.test.mjs` `343/343`、移动 UI `50/50` 和 `git diff --check`。本轮只同步、提交和推送代码；未运行普通 `next build`，也未改变当前 production artifact。
 
 ## 下一次更新本文件时至少记录
 
