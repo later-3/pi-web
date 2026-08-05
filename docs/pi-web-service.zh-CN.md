@@ -190,11 +190,11 @@ production 使用 `.next-mobile/`，不会与开发服务器的 `.next/` 混用�
 按失败位置处理：
 
 1. `本机健康检查` 失败：执行 `./scripts/manage-pi-web.sh logs`，再检查 `lsof -nP -iTCP:30141 -sTCP:LISTEN`。
-2. 本机正常但 `云端隧道检查` 失败：新版 `run-pi-web-cloud-relay.sh` 会在 launchd 重试前自动检查并回收仅由 `sshd` 占用、但 health 连续失败的 `33041` 残留 listener。若仍未恢复，再执行 `./scripts/manage-pi-web.sh restart` 并查看 relay 日志。
+2. 本机正常但 `云端隧道检查` 失败：`run-pi-web-cloud-relay.sh` 会在 launchd 重试前自动检查并回收仅由 `sshd` 占用、但 health 连续失败的 `33041` 残留 listener。预检 SSH 使用 `ServerAliveInterval=10`、`ServerAliveCountMax=2`，另有 `35s` 本地 watchdog。不能只看 LaunchAgent 的 `state=running`，还要检查 PID 树、云端 listener 和 health；若仍未恢复，再执行 `./scripts/manage-pi-web.sh restart` 并查看 relay 日志。
 3. 云端隧道正常但 `手机公网检查` 失败：检查云服务器的 Nginx 和 cloudflared。
 4. `/login` 能打开但登录失败：检查 `deploy/secrets/pi-web-auth-credentials.json`，权限必须是 `600`；不要把密码打印进日志或提交 Git。
 5. Linux 不可达：启动时不主动探测，也不会阻断页面；切换到 Linux、发送失败或主动重检时才检查一次。确认后界面显示“网关暂时无法连接”，可切到 Main Mac，不应清除 Cookie 或站点数据。
-6. 使用中出现“暂时无法连接”：这表示云端到该设备的 Pi Web relay 不通，不代表电脑关机。新版没有后台轮询；点击“重新检测”会执行 1 次探针，成功立即恢复，失败则保持当前界面。
+6. 使用中出现“暂时无法连接”：这表示云端到该设备的 Pi Web relay 不通，不代表电脑关机。应用不做后台轮询；云端兜底页的“重新检测”会请求 1 次故障转移控制面的 `/login`，恢复后才重新载入 Pi Web，仍不可达时显示明确结果。按钮不会也不应该从浏览器直接重启服务器隧道。
 7. 切换过程中出现整页白屏：先确认两台设备均为 `67effb8` 或更新版本，并检查浏览器是否命中旧 Service Worker 资源；刷新一次 PWA 后再复测。gateway 正常路径不应调用 document reload。
 
 云服务器只读检查命令：

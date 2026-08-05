@@ -74,6 +74,16 @@
 
 产品机制同步改为需求驱动：启动和空闲时不请求 health；健康发送直接执行，只有真实发送/SSE 建连失败后才补做 1 次 health 判断；设备切换与“重新检测”也各做 1 次。确认后文案为“网关暂时无法连接，设备本身可能仍在线”。普通应用 `503` 或浏览器本身断网不会被归类为设备不可达。Mac LaunchAgent 改用 `run-pi-web-cloud-relay.sh`：每次重连前先保留仍健康的 listener；若连续 health 失败，只在 owner=`sshd` 时定向回收，再建立新隧道，避免 raw ssh 永久重试 `remote port forwarding failed`。
 
+### 2.4 2026-08-05 自愈预检自身卡死
+
+用户再次看到云端兜底页时，Mac 本机 `30141 health=200`、production `runs=1`，云端 Nginx/cloudflared 均为 `active`，但 `33041` listener 不存在、`33042 health=503`。Relay LaunchAgent 表面为 `state=running`，实际已累计 `runs=233`；父 Bash PID `25006` 与预检 SSH 子 PID `25009` 从 `02:17:29` 起卡住 `6:49:07`。同一时刻新的直接 SSH 可以访问云服务器，证明旧子进程是网络切换留下的半开会话。
+
+根因是预检 SSH 只有 `ConnectTimeout=10`。该选项只限制 TCP/SSH 建连阶段；连接一旦建立，后续网络失效不会触发它。父 Bash 永久等待子进程，launchd 因仍有 PID 而不会重启，自愈链反而失去自愈能力。
+
+修复采用两层界限：所有预检/主隧道 SSH 都设置 `ServerAliveInterval=10`、`ServerAliveCountMax=2`；预检外再包一层 `35s` 本地 watchdog，超时先 TERM、2 秒后 KILL，由 launchd 重新执行完整流程。真实回归中主动 KILL 隧道 PID `35672` 后，launchd 自动建立 PID `39324`，云端 `33041`、公网 health 恢复 `200`，未登录 root 正常返回 `307`。
+
+云端兜底页的按钮也从盲目 `location.reload()` 改为一次用户触发的 `/login` 控制面检查：成功才重新载入，失败显示“设备隧道仍不可达，后台正在自动重连”，不引入后台轮询。Nginx release 为 `20260805T011103Z`。
+
 ## 3. 实际部署架构
 
 ```text
@@ -269,6 +279,7 @@ KillMode=mixed
 |---|---|---|---|
 | Mac 断网/换网导致 relay 建不起来 | 手机入口 `502` 或超时；云服务仍 active | Mac SSH 日志 `Network is unreachable`；Cloud `33041` upstream refused | LaunchAgent `KeepAlive` 自动重试；新脚本同时看本机、云端和历史摘要 |
 | 云端残留旧 reverse listener | `33041` 看似 LISTEN，但 health 超时；新 SSH 报 forward failure | Mac 休眠/网络切换后旧 server-side `sshd` 停在半关闭状态 | LaunchAgent wrapper 每次重连前自动确认 health，失败时只回收 owner=`sshd` 的专用端口；管理脚本保留人工兜底 |
+| Relay 自愈预检卡死 | LaunchAgent 显示 running，但 `33041` listener 缺失；父 Bash/SSH 子进程数小时不退出 | `ConnectTimeout` 不约束已建立的 SSH 会话，网络切换后父进程永久 wait | SSH `ServerAlive=10×2` + 预检 `35s` 本地 watchdog；验收必须同时看 PID 树、listener 与 health |
 | Linux npm wrapper 留下孤儿 Next | health 仍绿，但 systemd `activating (auto-restart)`、新进程 `EADDRINUSE` | `npm → shell → next-server` 信号/进程归属错误 | systemd 直接管理 Node/Next，`KillMode=mixed`；验收 MainPID/listener/cgroup |
 | Linux 粘性后端离线 | 旧版出现 Cloudflare `502` | 目录和 health 误跟随离线 Cookie，前端没有离线状态 | 控制面跨设备 failover；health=`503 device_offline`；离线页一键切设备，不清 Cookie |
 | 在线设备被写成“离线” | 电脑和本机服务在线，但云端 relay 不通 | UI 把“网关可达性”等同于“机器在线状态”，并在后台主动轮询 | 改称“网关暂时无法连接”；启动/空闲零探针，操作失败、切换或手动重检时各检查 1 次 |

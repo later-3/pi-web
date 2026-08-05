@@ -28,9 +28,13 @@ done
 ssh_options=(
   -o BatchMode=yes
   -o ConnectTimeout=10
+  -o ServerAliveInterval=10
+  -o ServerAliveCountMax=2
   -o StrictHostKeyChecking=yes
+  -o TCPKeepAlive=yes
 )
 ssh_target="root@$cloud_host"
+preflight_timeout_seconds=35
 
 # Do not claim a cloud listener that would only forward to a dead local app.
 /usr/bin/curl --fail --silent --max-time 3 \
@@ -67,8 +71,19 @@ set +e
     sleep 1
   done
   exit 4
-"
+" &
+preflight_pid="$!"
+(
+  sleep "$preflight_timeout_seconds"
+  kill -TERM "$preflight_pid" 2>/dev/null || exit 0
+  sleep 2
+  kill -KILL "$preflight_pid" 2>/dev/null || true
+) &
+watchdog_pid="$!"
+wait "$preflight_pid"
 preflight_status="$?"
+kill "$watchdog_pid" 2>/dev/null || true
+wait "$watchdog_pid" 2>/dev/null || true
 set -e
 
 if [[ "$preflight_status" -eq 10 ]]; then
@@ -83,8 +98,5 @@ exec /usr/bin/ssh -NT \
   "${ssh_options[@]}" \
   -o ConnectionAttempts=3 \
   -o ExitOnForwardFailure=yes \
-  -o ServerAliveInterval=30 \
-  -o ServerAliveCountMax=3 \
-  -o TCPKeepAlive=yes \
   -R "127.0.0.1:$remote_port:127.0.0.1:$local_port" \
   "$ssh_target"

@@ -13,7 +13,7 @@
 | 上游合并提交 | `cb3655e` |
 | Pi SDK | `0.83.0` |
 | Node.js 下限 | `22.19.0` |
-| 当前验证 | TypeScript、ESLint、`343/343` Node tests、移动 UI `50/50` 静态检查与 `git diff --check` 通过；本轮未执行 production build 或部署，生产状态仍以 2026-08-04 记录为准 |
+| 当前验证 | TypeScript、ESLint、`343/343` Node tests、移动 UI `50/50` 静态检查与 `git diff --check` 通过；2026-08-05 已热更新 Mac relay wrapper 与云端 Nginx 兜底页，production artifact 仍为 2026-08-04 build |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
 
 ## 当前自研能力
@@ -149,6 +149,15 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 3. 人工解决 `9` 个冲突文件：Agent API 保留 Chat 管理 Session 只读边界和登录账号 Push audience，同时采用上游事件投影与 session cwd 解析；RPC/删除流程组合 Session 级 Extension 过滤、幂等删除和上游 `session_shutdown`；前端组合 Later 的设备失败语义、单调 run reconciliation 与上游 `agent_settled`/idle grace。
 4. 移动端继续使用 Later 的 `768px`/短横屏断点、全宽工作区、安全区和带阈值的 Visual Viewport 判定；同时吸收上游 `interactiveWidget=resizes-content`、输入控件 `16px` 防聚焦缩放和内容宽度修复。没有恢复上游较窄的 `640px` drawer，也没有叠加第二套 viewport 监听。
 5. 验证通过：`node_modules/.bin/tsc --noEmit`、`npm run lint`、全部 `.test.mjs` `343/343`、移动 UI `50/50` 和 `git diff --check`。本轮只同步、提交和推送代码；未运行普通 `next build`，也未改变当前 production artifact。
+
+## 2026-08-05 Relay 自愈卡死修复
+
+1. 事故事实：用户看到“云端暂时无法连接执行设备”时，Mac 本机 production 与 `30141 health=200`；云端 Nginx/cloudflared 均 active，但 `33041/33043` listener 均不存在，`33042 health=503`，公网 health=`503`。页面准确描述网关不可达，但不能据此称 Mac 离线。
+2. 根因证据：Mac HTTP relay LaunchAgent 显示 `state=running`、`runs=233`，实际父 Bash PID `25006` 和预检 SSH PID `25009` 已卡住 `6:49:07`。预检只有 `ConnectTimeout=10`，连接建立后的半开会话没有 ServerAlive 或硬超时，导致 launchd 永远不再重启。
+3. 修复：`run-pi-web-cloud-relay.sh` 的预检与主隧道统一使用 `ServerAliveInterval=10`、`ServerAliveCountMax=2`、`TCPKeepAlive=yes`；预检增加 `35s` 本地 watchdog，超时 TERM 并在 2 秒后 KILL。修复不重启 Pi Web production，也不影响本机 Agent。
+4. 自动恢复实测：恢复后主动 KILL relay PID `35672`，launchd 自动建立 PID `39324`，云端 `33041 health=200`、公网 health=`200`、未登录 root=`307`，证明重启闭环有效。
+5. 兜底页修复：原“重新检查”只是 `location.reload()`，隧道未恢复时没有可见反馈。现按钮只在用户点击时请求 1 次控制面 `/login`；成功才 reload，失败显示隧道仍不可达，不做后台轮询。云端 Nginx release `20260805T011103Z`，安装前自动备份并经 `nginx -t`/reload 验收。
+6. 最终验收：TypeScript、ESLint、shell syntax、显式 `.test.mjs` `343/343` 与 `git diff --check` 通过。全链路 `22` 项中 Mac production/relay、云端服务、`33041/33042`、公网默认/Mac/未知 Cookie 路由全部通过；`4` 个失败与 `1` 个警告只对应仍不可达的 Linux。
 
 ## 下一次更新本文件时至少记录
 
