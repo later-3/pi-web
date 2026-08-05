@@ -252,7 +252,7 @@ export async function DELETE(
       }
     } catch { /* skip if dir unreadable */ }
 
-    getRpcSession(id)?.destroy();
+    await getRpcSession(id)?.shutdown();
     // Destroying a newly-created empty AgentSession may remove its file.
     // Treat that as an already-completed delete instead of returning 500.
     try {
@@ -268,7 +268,7 @@ export async function DELETE(
     // reaches the filesystem. Deletion is idempotent, so clear any cached
     // runtime/path state and report success when the target is already gone.
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      getRpcSession(id)?.destroy();
+      await getRpcSession(id)?.shutdown();
       invalidateSessionPathCache(id);
       invalidateSessionListCache();
       return NextResponse.json({ ok: true });

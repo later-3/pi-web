@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { isChatManagedSessionPath, resolveSessionPath } from "@/lib/session-reader";
 import { startRpcSession, getRpcSession } from "@/lib/rpc-manager";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { getWebAuthSubject } from "@/lib/web-auth";
 
 // POST /api/agent/[id] - Send a command to an existing session
@@ -34,9 +33,7 @@ export async function POST(
       return NextResponse.json({ success: true, data: result });
     }
 
-    const cwd = SessionManager.open(filePath).getHeader()?.cwd ?? process.cwd();
-
-    const { session } = await startRpcSession(id, filePath, cwd);
+    const { session } = await startRpcSession(id, filePath, undefined);
     if (notificationAccount) session.setNotificationAudience(notificationAccount);
     const result = await session.send(body);
 

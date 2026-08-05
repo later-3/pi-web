@@ -844,7 +844,7 @@ export function AppShell({
           pointer-events: none !important;
         }
         .sidebar-container.sidebar-mobile-pending.sidebar-open {
-          transform: translateX(-100%);
+          transform: translateX(calc(-100% - env(safe-area-inset-left)));
           box-shadow: none;
         }
       }
@@ -877,6 +877,8 @@ export function AppShell({
           display: "flex",
           flexDirection: "column",
           flexShrink: 0,
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
           zIndex: 200,
         } as React.CSSProperties}
       >
@@ -1689,7 +1691,15 @@ export function AppShell({
         } as React.CSSProperties}
       >
         {/* Right panel tab bar */}
-        <div style={{ display: "flex", alignItems: "center", flexShrink: 0, background: "var(--bg-panel)", borderBottom: "1px solid var(--border)", height: 36 }}>
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          flexShrink: 0,
+          height: "calc(36px + env(safe-area-inset-top))",
+          paddingTop: "env(safe-area-inset-top)",
+          background: "var(--bg-panel)",
+          borderBottom: "1px solid var(--border)",
+        }}>
           <div style={{ flex: 1, overflow: "hidden" }}>
             <TabBar
               tabs={fileTabs}
@@ -1702,7 +1712,7 @@ export function AppShell({
         </div>
 
         {/* File content */}
-        <div style={{ flex: 1, overflow: "hidden" }}>
+        <div style={{ flex: 1, overflow: "hidden", paddingBottom: "env(safe-area-inset-bottom)" }}>
           {activeFileTab?.filePath ? (
             <FileViewer
               filePath={activeFileTab.filePath}
