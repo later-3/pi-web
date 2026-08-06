@@ -4,7 +4,7 @@ import {
   buildSessionContext as piBuildSessionContext,
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
-import { closeSync, openSync, readSync } from "fs";
+import { closeSync, existsSync, openSync, readSync, statSync } from "fs";
 import { isAbsolute, join, normalize as normalizePath, relative, resolve } from "path";
 import type { AgentMessage, SessionEntry, SessionHeader, SessionInfo, SessionContext } from "./types";
 import type { SessionEntry as PiSessionEntry, SessionInfo as PiSessionInfo } from "@earendil-works/pi-coding-agent";
@@ -23,6 +23,14 @@ export function isChatManagedSessionPath(filePath: string): boolean {
   const candidate = resolve(filePath);
   const rel = relative(getChatSessionsDir(), candidate);
   return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+}
+
+function isAvailableDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 async function loadAllSessions(): Promise<SessionInfo[]> {
@@ -53,6 +61,7 @@ async function loadAllSessions(): Promise<SessionInfo[]> {
   return piSessions.map((s) => {
     cacheSessionPath(s.id, s.path);
     const project = s.cwd ? projectByCwd.get(s.cwd) : undefined;
+    const projectRoot = project?.projectRoot ?? s.cwd;
     return {
       path: s.path,
       id: s.id,
@@ -63,7 +72,8 @@ async function loadAllSessions(): Promise<SessionInfo[]> {
       messageCount: s.messageCount,
       firstMessage: s.firstMessage || "(no messages)",
       parentSessionId: s.parentSessionPath ? pathToId.get(sessionPathKey(s.parentSessionPath)) : undefined,
-      projectRoot: project?.projectRoot ?? s.cwd,
+      projectRoot,
+      projectAvailable: Boolean(projectRoot && isAvailableDirectory(projectRoot)),
       ...(project?.isWorktree && project.branch ? { worktreeBranch: project.branch } : {}),
       sessionSource: s.sessionSource,
       readOnly: s.readOnly,
@@ -137,11 +147,15 @@ function getPathToIdCache(): Map<string, string> {
 
 export async function resolveSessionPath(sessionId: string): Promise<string | null> {
   const cached = getPathCache().get(sessionId);
-  if (cached) return cached;
+  if (cached && existsSync(cached)) return cached;
+  if (cached) invalidateSessionPathCache(sessionId);
 
   // Cache miss: scan all sessions to populate cache, then retry
   await listAllSessions();
-  return getPathCache().get(sessionId) ?? null;
+  const refreshed = getPathCache().get(sessionId);
+  if (refreshed && existsSync(refreshed)) return refreshed;
+  if (refreshed) invalidateSessionPathCache(sessionId);
+  return null;
 }
 
 export async function resolveSessionIdByPath(filePath: string): Promise<string | undefined> {

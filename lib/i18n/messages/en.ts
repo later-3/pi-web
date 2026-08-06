@@ -119,6 +119,7 @@ export const enLocale: LocalePlugin = {
     "sidebar.selectProject": "Select project…",
     "sidebar.filterProjects": "Filter projects…",
     "sidebar.noMatchingProjects": "No matching projects",
+    "sidebar.unavailable": "Unavailable",
     "sidebar.useDefaultDirectory": "Use default directory",
     "sidebar.customPath": "Custom path…",
     "directoryPicker.selectDirectory": "Select directory",

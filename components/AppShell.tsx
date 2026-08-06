@@ -526,7 +526,8 @@ export function AppShell({
 
   const handleInitialRestoreDone = useCallback(() => {
     setInitialSessionRestored(true);
-  }, []);
+    router.replace("/", { scroll: false });
+  }, [router]);
 
   const handleSessionDeleted = useCallback((sessionId: string) => {
     setRefreshKey((k) => k + 1);

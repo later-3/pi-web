@@ -163,18 +163,29 @@ function formatRelativeTime(dateStr: string): string {
  * main repo) sorted by most recent session activity.
  */
 function getRecentProjects(sessions: SessionInfo[]): string[] {
-  const latestByRoot = new Map<string, string>(); // projectRoot -> most recent modified
+  const projectState = new Map<string, { modified: string; available: boolean }>();
   for (const s of sessions) {
     const root = s.projectRoot ?? s.cwd;
     if (!root) continue;
-    const prev = latestByRoot.get(root);
-    if (!prev || s.modified > prev) {
-      latestByRoot.set(root, s.modified);
-    }
+    const prev = projectState.get(root);
+    projectState.set(root, {
+      modified: !prev || s.modified > prev.modified ? s.modified : prev.modified,
+      available: (prev?.available ?? false) || s.projectAvailable !== false,
+    });
   }
-  return [...latestByRoot.entries()]
-    .sort((a, b) => b[1].localeCompare(a[1]))
+  return [...projectState.entries()]
+    .sort((a, b) => Number(b[1].available) - Number(a[1].available) || b[1].modified.localeCompare(a[1].modified))
     .map(([root]) => root);
+}
+
+function getProjectAvailability(sessions: SessionInfo[]): Map<string, boolean> {
+  const availability = new Map<string, boolean>();
+  for (const session of sessions) {
+    const root = session.projectRoot ?? session.cwd;
+    if (!root) continue;
+    availability.set(root, (availability.get(root) ?? false) || session.projectAvailable !== false);
+  }
+  return availability;
 }
 
 /** Substitute the home dir prefix with ~ (no path truncation — see PathLabel) */
@@ -838,6 +849,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   }, [selectedCwd, onNewSession]);
 
   const recentProjects = getRecentProjects(allSessions);
+  const projectAvailability = getProjectAvailability(allSessions);
   const showProjectFilter = recentProjects.length > 8;
   const visibleProjects = projectFilter.trim()
     ? recentProjects.filter((p) => p.toLowerCase().includes(projectFilter.trim().toLowerCase()))
@@ -1152,6 +1164,11 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                     )}
                     {project !== selectedProject && <span style={{ width: 10, flexShrink: 0 }} />}
                     <PathLabel text={displayCwd(project, homeDir)} style={{ flex: 1 }} />
+                    {projectAvailability.get(project) === false && (
+                      <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: 10 }}>
+                        {t("sidebar.unavailable")}
+                      </span>
+                    )}
                   </button>
                 ))}
                 {visibleProjects.length === 0 && projectFilter.trim() && (

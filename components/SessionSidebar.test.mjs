@@ -32,3 +32,9 @@ test("mobile workspace separates sessions from drill-down file browsing", () => 
   assert.match(source, /navigationMode=\{isMobile \? "drilldown" : "tree"\}/);
   assert.match(source, /className="mobile-session-search"/);
 });
+
+test("sorts unavailable historical projects after usable workspaces", () => {
+  assert.match(source, /Number\(b\[1\]\.available\) - Number\(a\[1\]\.available\)/);
+  assert.match(source, /projectAvailability\.get\(project\) === false/);
+  assert.match(source, /t\("sidebar\.unavailable"\)/);
+});

@@ -296,6 +296,9 @@ export interface SessionInfo {
    *  Always set by the server; optional because the client builds transient
    *  SessionInfo objects before the first refresh. Fall back to cwd. */
   projectRoot?: string;
+  /** Whether projectRoot currently exists as a directory. Missing historical
+   *  projects remain browsable, but the UI does not auto-select them. */
+  projectAvailable?: boolean;
   /** Branch name when cwd is a linked git worktree (not the main checkout) */
   worktreeBranch?: string;
   /** Chat-managed runtime transcripts are evidence, not resumable pi-web workspaces. */
