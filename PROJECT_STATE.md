@@ -13,9 +13,9 @@
 | 上游合并提交 | `cb3655e` |
 | Pi SDK | `0.83.0` |
 | Node.js 下限 | `22.19.0` |
-| 当前验证 | TypeScript、ESLint、`345/345` Node tests、移动 UI `50/50` 静态检查与 `git diff --check` 通过；Pi runtime 隔离回归 `12/12` 通过 |
+| 当前验证 | TypeScript、ESLint、`347/347` Node tests、移动 UI `50/50` 静态检查与 `git diff --check` 通过；Pi runtime 隔离回归 `12/12` 通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
-| Mac production | commit `2ba9140`，build id `W26VCiWZb67haYcjOa7XJ`，2026-08-06 已部署 |
+| Mac production | commit `f78d53c`，build id `hP7sWMChyo3RDO9Ge97zy`，2026-08-06 已部署 |
 
 ## 当前自研能力
 
@@ -168,6 +168,16 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 4. Pi Web 防复发：提交 `2ba9140` 为 Session 列表增加项目目录可用性，自动选择时把目录已不存在的历史项目排到可用项目之后并明确标记；缓存的 Session 文件已不存在时立即失效路径，旧深链返回 `404`；初始 URL 指向已删除 Session 时清理失效导航并回到可用工作区。
 5. 生产部署：在 detached worktree 按 `2ba9140` 构建候选产物，先于 `127.0.0.1:30142` 验证登录、Session、模型、文件、运行态与旧深链，再确认正式运行 Session 仍为 `0` 后原子切换。当前 build id `W26VCiWZb67haYcjOa7XJ`，PID 与 `30141` listener 一致；旧 build `YiObNJqmga67GsqYQEVxW` 保存在 `.next-mobile-backup-pre-session-recovery-20260806T1105CST`。
 6. 最终验收：TypeScript、ESLint、显式 `.test.mjs` `345/345`、移动 UI `50/50`、`git diff --check` 全部通过。本机 health、云端 `33041`、公网入口及 `piweb`/`later` 两个应用账号登录全部通过；生产 API 为 Session `200/69`、模型 `200/21`、文件 `200`、旧 faux Session `404`、运行 Session `0`。Pi Web 与 Pi 源码提交当前仅保存在本地分支，未推送远端。
+
+## 2026-08-06 新 Session 首条消息 404 修复
+
+1. 事故事实：手机页面、设备状态和历史 Session 均可用，但新 Session `019fd536-218c-7469-89f9-f37a7abb3027` 在 `11:55:22 CST` 已被 production 创建并记录 `session_start` 后，SSE 与 prompt POST 仍连续返回应用层 `404 Session not found`。请求已穿过 Cloudflare、Nginx 和 `33041` 到达 Mac，因此不是设备离线或隧道故障。
+2. 根因：`/api/agent/new` 通过 `SessionManager.create()` 创建真实内存 runtime 并返回 UUID，但首条可持久化命令之前 JSONL 尚未创建；Pi 还可能提前给 `sessionFile` 分配未来路径。Agent POST/SSE 当时先用 `resolveSessionPath()` 要求文件存在，之后才查 server registry，合法的新 runtime 因校验顺序被误判为不存在。
+3. 代码修复：commit `f78d53c` 只允许 server registry 中仍存活、且 Session 文件尚未实际存在的 runtime 穿过首条命令前的窗口；已有磁盘 Session 仍先执行路径解析与 Chat 托管只读检查。新增 API 回归同时锁定“未落盘新 runtime 为 200”和“已注册 Chat runtime 仍为 403”。可复用案例已写入 `docs/maintenance-playbook.zh-CN.md` 3.21。
+4. 验证：TypeScript、ESLint、显式 `.test.mjs` `347/347` 与 `git diff --check` 通过。候选 build 在 `127.0.0.1:30142` 完成应用登录、`ensure_session=200`、SSE `200 connected`、首条 prompt `200`、settled、Session 列表/JSONL 落盘和 API 清理；公网 `https://pi.ai4child.asia` 又完整重复一次，所有阶段均通过并清理测试 Session。
+5. 生产部署：确认正式运行 Session 为 `0` 后切换到 build id `hP7sWMChyo3RDO9Ge97zy`；production PID `37109` 与 `127.0.0.1:30141` listener 一致，LaunchAgent `runs=1`。部署后本机、云端 `33041`、公网默认/Mac/未知 Cookie 路由均为 `200`，生产 API 为 Session `200/69`、模型 `200/21`、运行 Session `200/0`。
+6. 构建处置与回滚：第一次候选命令因工作目录仍指主仓，曾在旧进程保持运行时把主仓磁盘 artifact 写成被拒绝的 build `-30-epSjo36ef4-uDg7xX`；health 未中断、Session 数据未修改，该产物保存在 `.next-mobile-backup-rejected-f9da8c9-20260806T1215CST`，不得作为回滚。最终 build 从相邻 detached worktree `/Users/xulater/Code/pi-web-deploy-f78d53c` 生成并经 `30142` 验收；最近已知稳定回滚仍为 `.next-mobile-backup-pre-session-recovery-20260806T1105CST`（build `YiObNJqmga67GsqYQEVxW`），也可从 commit `2ba9140` 重建上一版。
+7. 外部剩余状态：`check-pi-web-cloud.sh` 为 `22` 项、`4` 失败、`1` 警告；失败均对应仍不可达的 `linux-home`、`33043` 与 Linux 直连，Mac 控制面和执行面不受影响。Pi Web 修复提交仍仅在本地分支，未推送远端。
 
 ## 下一次更新本文件时至少记录
 
