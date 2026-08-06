@@ -428,7 +428,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
   return (
     <div
       className="relative flex h-full min-w-0 flex-col overflow-hidden"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      style={{ paddingBottom: readOnly ? "env(safe-area-inset-bottom)" : undefined }}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}

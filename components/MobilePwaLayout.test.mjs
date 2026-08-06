@@ -27,7 +27,10 @@ test("tracks the visual viewport while the software keyboard is open", () => {
   assert.match(cssSource, /\.app-shell-root \{[\s\S]*?height: var\(--visual-viewport-height, 100dvh\)/);
   assert.match(cssSource, /padding-left: var\(--safe-area-left\)/);
   assert.match(cssSource, /padding-right: var\(--safe-area-right\)/);
-  assert.match(chatWindowSource, /paddingBottom: "env\(safe-area-inset-bottom\)"/);
+  // The writable composer owns the bottom safe area. Applying it to both the
+  // chat root and `.mobile-composer` doubles the blank space below the model row.
+  assert.match(chatWindowSource, /paddingBottom: readOnly \? "env\(safe-area-inset-bottom\)" : undefined/);
+  assert.match(cssSource, /\.mobile-composer \{[\s\S]*?margin: 6px 8px max\(8px, var\(--safe-area-bottom\)\);/);
 });
 
 test("contains chat content and inputs within the mobile viewport", () => {
