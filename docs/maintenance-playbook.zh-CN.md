@@ -273,6 +273,16 @@ git push -u origin codex/later-custom
 - 部署验证：不能只 curl health；必须同时得到 unit `active`、端口 PID 位于 unit cgroup、relay health 和公网目标路由成功。2026-07-31 应用直接 Node unit 后，确认 0 个 Session 的空闲 restart 从超时 30 秒降为 52ms，MainPID 与端口 PID 相同。活跃 Session 不得为了部署被中断，等其自然结束后再重启。
 - 防复发：部署脚本分阶段等待命令返回，不把后续命令提前写进交互式 `sudo systemctl stop` 的 PTY；停止超时后重新采集 unit、cgroup、端口与 Session 证据，不能盲目 `killall node`。
 
+### 3.21 新会话首条消息返回 `Session not found`
+
+- 症状：页面、设备目录和历史 Session 都能正常打开；新建工作区后发送第一条消息，`/api/agent/<id>/events` 与随后的 prompt POST 返回 `404 Session not found`。这不是 Cloudflare、Nginx 或设备隧道故障。
+- 根因证据：`/api/agent/new` 已返回真实 UUID，production 日志也记录该 UUID 的 `session_start`，但 `~/.pi/agent/sessions` 中还没有对应 JSONL。Pi 的 `SessionManager.create()` 会先创建内存 runtime，直到第一条可持久化命令才创建 Session 文件；Agent API 当时却先调用 `resolveSessionPath()` 检查文件，再查询 server registry，合法的新 runtime 因而落入 404。
+- 修复：仅当 UUID 对应 server registry 中仍存活、且 `sessionFile` 为空或指向的文件尚未实际创建时，允许 Agent POST 与 SSE 使用该 runtime；Pi 可能先分配未来的文件路径，所以不能只判断空字符串。已有磁盘 Session 继续先解析文件并执行 Chat 托管只读边界，再复用或启动 runtime。不能通过取消所有文件校验来修复，否则会破坏只读 Session 的安全边界。
+- 自动化验证：API 回归同时覆盖“未落盘 runtime 的首条 prompt/SSE 为 200”和“已注册但属于 Chat 托管目录的 runtime 仍为 403”；全量 TypeScript、ESLint 和 `.test.mjs` 必须通过。
+- 部署验证：先在独立端口用真实登录 Cookie 完成 `ensure_session → SSE connected → 首条 prompt → JSONL 出现`，再确认正式运行 Session 为 0 后切换 production；公网同样创建一次最小新 Session，不能只验证 health 或历史 Session 列表。
+- 防复发：新 Session 有“已注册但未落盘”的合法生命周期；凡是通过 `/api/agent/new` 返回 UUID 的流程，都必须在首条持久化命令前保持该 runtime 可寻址。任何放行只能基于 server registry，不能接受客户端自报 cwd、文件路径或任意 UUID。
+- 相关文件：`app/api/agent/[id]/route.ts`、`app/api/agent/[id]/events/route.ts`、`app/api/agent/new/route.ts`、`lib/rpc-manager.ts`、`lib/unpersisted-agent-session-api.test.mjs`。
+
 ## 4. 新案例模板
 
 ```markdown

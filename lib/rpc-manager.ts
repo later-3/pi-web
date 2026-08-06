@@ -1105,6 +1105,19 @@ export function getRpcSession(sessionId: string): AgentSessionWrapper | undefine
   return getRegistry().get(sessionId);
 }
 
+/**
+ * Return a live session that was created by /api/agent/new but has not written
+ * its first JSONL entry yet. SessionManager intentionally delays creating the
+ * file until the first command is persisted, so these sessions must be
+ * addressable by their server-registered runtime id during that short window.
+ */
+export function getUnpersistedRpcSession(sessionId: string): AgentSessionWrapper | undefined {
+  const session = getRpcSession(sessionId);
+  if (!session?.isAlive()) return undefined;
+  const sessionFile = session.sessionFile;
+  return !sessionFile || !existsSync(sessionFile) ? session : undefined;
+}
+
 export function hasBusyRpcSessionForCwd(cwd: string): boolean {
   const targetCwd = normalizeRpcCwd(cwd);
   if (getStartingSessionCwds().has(targetCwd)) return true;

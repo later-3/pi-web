@@ -1,5 +1,5 @@
 import { isChatManagedSessionPath, resolveSessionPath } from "@/lib/session-reader";
-import { getRpcSession, startRpcSession, type AgentEvent } from "@/lib/rpc-manager";
+import { getRpcSession, getUnpersistedRpcSession, startRpcSession, type AgentEvent } from "@/lib/rpc-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -23,22 +23,34 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const filePath = await resolveSessionPath(id);
-  if (!filePath) {
-    return new Response("Session not found", { status: 404 });
-  }
-  if (isChatManagedSessionPath(filePath)) {
-    return new Response("Chat-managed pi sessions are read-only evidence", { status: 403 });
+  // A newly created runtime has no JSONL file until its first command. Only a
+  // live id already registered by /api/agent/new may bypass the file check.
+  let session = getUnpersistedRpcSession(id);
+  if (!session) {
+    const filePath = await resolveSessionPath(id);
+    if (!filePath) {
+      return new Response("Session not found", { status: 404 });
+    }
+    if (isChatManagedSessionPath(filePath)) {
+      return new Response("Chat-managed pi sessions are read-only evidence", { status: 403 });
+    }
+
+    // Persisted sessions still require the server-side ownership check above.
+    session = getRpcSession(id);
+    if (session?.isAlive()) {
+      // Reuse the validated runtime below.
+    } else {
+      try {
+        ({ session } = await startRpcSession(id, filePath, undefined));
+      } catch (error) {
+        return new Response(`Failed to start agent: ${error}`, { status: 500 });
+      }
+    }
   }
 
-  // Fast path only after the server-side ownership check above.
-  let session = getRpcSession(id);
-  if (!session || !session.isAlive()) {
-    try {
-      ({ session } = await startRpcSession(id, filePath, undefined));
-    } catch (error) {
-      return new Response(`Failed to start agent: ${error}`, { status: 500 });
-    }
+  if (!session) {
+    // Defensive guard for future registry implementations.
+    return new Response("Session not found", { status: 404 });
   }
 
   const stream = new ReadableStream({

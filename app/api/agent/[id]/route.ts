@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isChatManagedSessionPath, resolveSessionPath } from "@/lib/session-reader";
-import { startRpcSession, getRpcSession } from "@/lib/rpc-manager";
+import { getRpcSession, getUnpersistedRpcSession, startRpcSession } from "@/lib/rpc-manager";
 import { getWebAuthSubject } from "@/lib/web-auth";
 
 // POST /api/agent/[id] - Send a command to an existing session
@@ -14,6 +14,16 @@ export async function POST(
     const body = await req.json() as { type: string; [key: string]: unknown };
     const notificationAccount = body.type === "prompt" ? getWebAuthSubject(req) : null;
 
+    // A new SessionManager does not create its JSONL file until the first
+    // command is persisted. The runtime id is nevertheless registered by the
+    // server and is the only safe authority during that pre-persistence gap.
+    const unpersisted = getUnpersistedRpcSession(id);
+    if (unpersisted) {
+      if (notificationAccount) unpersisted.setNotificationAudience(notificationAccount);
+      const result = await unpersisted.send(body);
+      return NextResponse.json({ success: true, data: result });
+    }
+
     const filePath = await resolveSessionPath(id);
     if (!filePath) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
@@ -25,7 +35,7 @@ export async function POST(
       );
     }
 
-    // Fast path only after the server-side ownership check above.
+    // Persisted sessions still require the server-side ownership check above.
     const existing = getRpcSession(id);
     if (existing?.isAlive()) {
       if (notificationAccount) existing.setNotificationAudience(notificationAccount);
