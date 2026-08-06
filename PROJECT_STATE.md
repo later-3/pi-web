@@ -15,7 +15,7 @@
 | Node.js 下限 | `22.19.0` |
 | 当前验证 | TypeScript、ESLint、`347/347` Node tests、移动 UI `50/50` 静态检查与 `git diff --check` 通过；Pi runtime 隔离回归 `12/12` 通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
-| Mac production | commit `f78d53c`，build id `hP7sWMChyo3RDO9Ge97zy`，2026-08-06 已部署 |
+| Mac production | commit `eaef325`，build id `4X-PPm5PHaOsN3tS-E74y`，2026-08-06 已部署 |
 
 ## 当前自研能力
 
@@ -178,6 +178,14 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 5. 生产部署：确认正式运行 Session 为 `0` 后切换到 build id `hP7sWMChyo3RDO9Ge97zy`；production PID `37109` 与 `127.0.0.1:30141` listener 一致，LaunchAgent `runs=1`。部署后本机、云端 `33041`、公网默认/Mac/未知 Cookie 路由均为 `200`，生产 API 为 Session `200/69`、模型 `200/21`、运行 Session `200/0`。
 6. 构建处置与回滚：第一次候选命令因工作目录仍指主仓，曾在旧进程保持运行时把主仓磁盘 artifact 写成被拒绝的 build `-30-epSjo36ef4-uDg7xX`；health 未中断、Session 数据未修改，该产物保存在 `.next-mobile-backup-rejected-f9da8c9-20260806T1215CST`，不得作为回滚。最终 build 从相邻 detached worktree `/Users/xulater/Code/pi-web-deploy-f78d53c` 生成并经 `30142` 验收；最近已知稳定回滚仍为 `.next-mobile-backup-pre-session-recovery-20260806T1105CST`（build `YiObNJqmga67GsqYQEVxW`），也可从 commit `2ba9140` 重建上一版。
 7. 外部剩余状态：`check-pi-web-cloud.sh` 为 `22` 项、`4` 失败、`1` 警告；失败均对应仍不可达的 `linux-home`、`33043` 与 Linux 直连，Mac 控制面和执行面不受影响。Pi Web 修复提交仍仅在本地分支，未推送远端。
+
+## 2026-08-06 移动输入区底部间距修复
+
+1. 根因：可输入 ChatWindow 与 `.mobile-composer` 同时应用 `safe-area-inset-bottom`，使模型选择行下方叠加了两层 iPhone 底部安全区；只读 Chat 执行记录不经过 composer，因此仍需由 ChatWindow 自己保留安全区。
+2. 代码修复：commit `eaef325` 让正常输入区只由 composer 持有一层安全区，只读状态继续使用外层安全区；移动 PWA 静态测试增加防重复断言。该提交已推送到私有 `origin/codex/later-custom`。
+3. 验证：针对性移动布局测试 `4/4`、TypeScript、ESLint 与 `git diff --check` 通过。部署前已通过认证检查 production 运行 Session 为 `0`。
+4. 生产部署：旧 build `hP7sWMChyo3RDO9Ge97zy` 备份为 `.next-mobile-backup-pre-eaef325-20260806T064226Z`；新 build id 为 `4X-PPm5PHaOsN3tS-E74y`，production PID `52241` 与 `127.0.0.1:30141` listener 一致，relay PID 为 `52336`。
+5. 最终验收：本机 health、Mac LaunchAgent、云端 `33041`、Nginx 登录保护、公网登录页与 `piweb`/`later` 两个应用账号均通过；手机 PWA 若仍持有旧页面，需要完全关闭后重新打开或刷新一次以加载新 chunk。
 
 ## 下一次更新本文件时至少记录
 
