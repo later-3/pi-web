@@ -2,7 +2,7 @@
 
 > 这是随仓库更新的“当前事实页”，不是永久设计说明。每次合入上游、完成重要功能或部署后都要更新。
 
-## 2026-08-05 基线
+## 2026-08-06 基线
 
 | 项目 | 当前值 |
 |---|---|
@@ -13,8 +13,9 @@
 | 上游合并提交 | `cb3655e` |
 | Pi SDK | `0.83.0` |
 | Node.js 下限 | `22.19.0` |
-| 当前验证 | TypeScript、ESLint、`343/343` Node tests、移动 UI `50/50` 静态检查与 `git diff --check` 通过；2026-08-05 已热更新 Mac relay wrapper 与云端 Nginx 兜底页，production artifact 仍为 2026-08-04 build |
+| 当前验证 | TypeScript、ESLint、`345/345` Node tests、移动 UI `50/50` 静态检查与 `git diff --check` 通过；Pi runtime 隔离回归 `12/12` 通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
+| Mac production | commit `2ba9140`，build id `W26VCiWZb67haYcjOa7XJ`，2026-08-06 已部署 |
 
 ## 当前自研能力
 
@@ -158,6 +159,15 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 4. 自动恢复实测：恢复后主动 KILL relay PID `35672`，launchd 自动建立 PID `39324`，云端 `33041 health=200`、公网 health=`200`、未登录 root=`307`，证明重启闭环有效。
 5. 兜底页修复：原“重新检查”只是 `location.reload()`，隧道未恢复时没有可见反馈。现按钮只在用户点击时请求 1 次控制面 `/login`；成功才 reload，失败显示隧道仍不可达，不做后台轮询。云端 Nginx release `20260805T011103Z`，安装前自动备份并经 `nginx -t`/reload 验收。
 6. 最终验收：TypeScript、ESLint、shell syntax、显式 `.test.mjs` `343/343` 与 `git diff --check` 通过。全链路 `22` 项中 Mac production/relay、云端服务、`33041/33042`、公网默认/Mac/未知 Cookie 路由全部通过；`4` 个失败与 `1` 个警告只对应仍不可达的 Linux。
+
+## 2026-08-06 faux 测试会话污染恢复
+
+1. 事故事实：手机端自动打开 `other / hello` 会话并显示 `faux-2`、`No available models`，文件目录请求失败。生产模型配置未改变；有效 cwd `/Users/xulater/Code/pi-web` 仍返回 `21` 个模型。异常数据来自 2026-08-05 两次绕过 Pi 仓库 `./test.sh` 的直接 Vitest 运行。
+2. 数据恢复：以“`pi-runtime-*` 临时 cwd + 仅含 `faux` 模型记录”为白名单，确认 production 运行 Session 为 `0` 后，将 `19` 个目录、`23` 个测试会话移动到 `~/.pi/agent/session-quarantine/2026-08-06-faux-runtime-tests/`。操作不删除文件，真实 Session 未移动；恢复后 production 列出 `69` 个真实会话、`10` 个项目、`0` 个 faux 会话。
+3. Pi 源码防复发：`/Users/xulater/Code/opc-os/pi` 的本地提交 `15f30e39` 为 `agent-session-runtime.test.ts` 显式传入测试专用 session 目录，并让跨 cwd 临时目录随测试清理；直接针对性回归 `12/12` 通过，真实 `~/.pi/agent/sessions` 未再产生 `pi-runtime-*` 文件。
+4. Pi Web 防复发：提交 `2ba9140` 为 Session 列表增加项目目录可用性，自动选择时把目录已不存在的历史项目排到可用项目之后并明确标记；缓存的 Session 文件已不存在时立即失效路径，旧深链返回 `404`；初始 URL 指向已删除 Session 时清理失效导航并回到可用工作区。
+5. 生产部署：在 detached worktree 按 `2ba9140` 构建候选产物，先于 `127.0.0.1:30142` 验证登录、Session、模型、文件、运行态与旧深链，再确认正式运行 Session 仍为 `0` 后原子切换。当前 build id `W26VCiWZb67haYcjOa7XJ`，PID 与 `30141` listener 一致；旧 build `YiObNJqmga67GsqYQEVxW` 保存在 `.next-mobile-backup-pre-session-recovery-20260806T1105CST`。
+6. 最终验收：TypeScript、ESLint、显式 `.test.mjs` `345/345`、移动 UI `50/50`、`git diff --check` 全部通过。本机 health、云端 `33041`、公网入口及 `piweb`/`later` 两个应用账号登录全部通过；生产 API 为 Session `200/69`、模型 `200/21`、文件 `200`、旧 faux Session `404`、运行 Session `0`。Pi Web 与 Pi 源码提交当前仅保存在本地分支，未推送远端。
 
 ## 下一次更新本文件时至少记录
 
