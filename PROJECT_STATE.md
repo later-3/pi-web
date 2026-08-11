@@ -17,6 +17,14 @@
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
 | Mac production | commit `eaef325`，build id `4X-PPm5PHaOsN3tS-E74y`，2026-08-06 已部署 |
 
+## 2026-08-07 Cloudflare Tunnel 应急直连
+
+1. `09:00 CST` 起公网入口返回 Cloudflare `1033`。Mac Pi Web `30141`、Mac SSH HTTP relay `33041`、云端 Nginx `33042` 均为 `200`；直接故障是云服务器到多个 Cloudflare Edge 的 TCP/UDP `7844` 连接持续超时。云主机 CPU、内存、conntrack、网卡和 qdisc 正常且无丢包，Cloudflare 配置与 systemd unit 没有同期修改；另一个 PWA 的请求量不足以造成拥塞。
+2. 单独重启云端 `cloudflared`、依次测试 `http2`、`quic` 与 `auto` 后，连接仍在 `0–3/4` 之间抖动并产生 `530/502`。云端原 HTTP/2 配置备份为 `/etc/cloudflared/config.yml.pre-quic-20260807T0937`，QUIC 中间配置备份为 `/etc/cloudflared/config.yml.pre-auto-20260807T0940`；当前云端配置为 `auto`，`cloudflared.service` 已 `disabled + inactive`，避免坏连接器参与边缘路由。
+3. 手机主入口临时切为 Mac 直连同一 named tunnel：LaunchAgent 为 `~/Library/LaunchAgents/com.later.pi-web.cloudflare-direct.plist`，入口直接转发到 `127.0.0.1:30141`。本机配置位于 gitignored 的 `deploy/state/cloudflared-mac-direct.yml`，tunnel 凭据位于 gitignored 的 `deploy/secrets/cloudflared-pi-web-mac.json` 且权限为 `600`。Linux 直连在该应急配置中明确返回 `503`，不伪装成 Mac。
+4. 恢复验收：Mac connector `4/4` HA、request errors=`0`；公网 `/login` 并发 `20/20` 返回 `200`，公网 `/api/health` 并发 `20/20` 返回 `200`；`verify-mobile-relay.sh` 的本机、云端 loopback、两个应用账号公网登录与受保护 root 全部通过。
+5. 这是可回滚的单设备应急拓扑。云服务器到 Cloudflare `7844` 恢复稳定后，应先在云端验证连续连接与公网成功率，再启用云端 connector；确认切回后用 `launchctl bootout gui/501/com.later.pi-web.cloudflare-direct` 下线 Mac 直连，不能让两套不同 ingress 的 connector 长期并存。
+
 ## 当前自研能力
 
 1. Mac production + SSH 反向隧道 + Nginx/Cloudflare 的单后端手机访问。
