@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const source = await readFile(new URL("./SessionSidebar.tsx", import.meta.url), "utf8");
+const projectGroupsSource = await readFile(new URL("../lib/project-groups.ts", import.meta.url), "utf8");
 const sessionItemSource = source.slice(source.indexOf("function SessionItem("));
 
 test("only Shift+click bypasses session deletion confirmation", () => {
@@ -34,7 +35,52 @@ test("mobile workspace separates sessions from drill-down file browsing", () => 
 });
 
 test("sorts unavailable historical projects after usable workspaces", () => {
-  assert.match(source, /Number\(b\[1\]\.available\) - Number\(a\[1\]\.available\)/);
-  assert.match(source, /projectAvailability\.get\(project\) === false/);
+  assert.match(projectGroupsSource, /Number\(b\[1\]\.available\) - Number\(a\[1\]\.available\)/);
+  assert.match(source, /projectAvailability\.get\(project\.key\) === false/);
   assert.match(source, /t\("sidebar\.unavailable"\)/);
+});
+
+test("exposes the polled running-session set to the shell", () => {
+  assert.match(source, /onRunningSessionIdsChange\?: \(ids: Set<string>\) => void/);
+  assert.match(source, /onRunningSessionIdsChange\?\.\(runningSessionIds\)/);
+});
+
+test("includes project activity counts in accessible labels", () => {
+  assert.match(
+    source,
+    /aria-label=\{`\$\{t\("sidebar\.agentRunning"\)\} \(\$\{activity\.running\}\)`\}/,
+  );
+  assert.match(
+    source,
+    /aria-label=\{`\$\{t\("sidebar\.newSessionActivity"\)\} \(\$\{activity\.unread\}\)`\}/,
+  );
+});
+
+test("does not persist an unchanged fallback title ending in whitespace", () => {
+  assert.match(
+    sessionItemSource,
+    /const name = renameValue\.trim\(\);[\s\S]*?if \(renameValue === title \|\| name === \(session\.name \?\? ""\)\) return;/,
+  );
+});
+
+test("offers the downstream context-menu hook only on a normal session row", () => {
+  assert.match(sessionItemSource, /const handleContextMenu[\s\S]*?dispatchSessionRowContextMenu\(\{/);
+  assert.match(
+    sessionItemSource,
+    /onContextMenu=\{confirmDelete \|\| renaming \|\| diskActionsDisabled \? undefined : handleContextMenu\}/,
+  );
+});
+
+test("manual and lifecycle refreshes bypass the server session-list cache", () => {
+  assert.match(source, /force \? "\/api\/sessions\?force=1" : "\/api\/sessions"/);
+  assert.match(source, /cache: "no-store"/);
+  assert.match(source, /loadSessions\(isFirst, !isFirst\)/);
+  assert.match(source, /onClick=\{\(\) => loadSessions\(false, true\)\}/);
+  assert.match(source, /loadSessions\(false, true\);[\s\S]*?onBackgroundTaskDone/);
+});
+
+test("does not expose disk-backed actions for transient sessions", () => {
+  assert.match(sessionItemSource, /const diskActionsDisabled = readOnly \|\| session\.transient === true/);
+  assert.match(sessionItemSource, /if \(diskActionsDisabled\) return;/);
+  assert.match(sessionItemSource, /!isMobile && hovered && !diskActionsDisabled/);
 });

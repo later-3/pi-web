@@ -1,11 +1,13 @@
 import type { NextConfig } from "next";
 import { readFileSync } from "fs";
-import { join } from "path";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 
-const { version } = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8")) as { version: string };
+const configDir = dirname(fileURLToPath(import.meta.url));
+const { version } = JSON.parse(readFileSync(join(configDir, "package.json"), "utf8")) as { version: string };
 let piVersion = "unknown";
 try {
-  const piPkgPath = join(__dirname, "node_modules/@earendil-works/pi-coding-agent/package.json");
+  const piPkgPath = join(configDir, "node_modules/@earendil-works/pi-coding-agent/package.json");
   piVersion = (JSON.parse(readFileSync(piPkgPath, "utf8")) as { version: string }).version;
 } catch { /* package not found, use default */ }
 
@@ -13,7 +15,7 @@ const distDir = process.env.PI_WEB_DIST_DIR || undefined;
 
 const nextConfig: NextConfig = {
   ...(distDir ? { distDir } : {}),
-  outputFileTracingRoot: __dirname,
+  outputFileTracingRoot: configDir,
   serverExternalPackages: [
     "undici",
     "@earendil-works/pi-coding-agent",
@@ -34,7 +36,7 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
-  allowedDevOrigins: ['192.168.*.*'],
+  allowedDevOrigins: ["127.0.0.1", "192.168.*.*"],
   async headers() {
     return [
       {

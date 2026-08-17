@@ -31,6 +31,10 @@ test("tracks the visual viewport while the software keyboard is open", () => {
   // chat root and `.mobile-composer` doubles the blank space below the model row.
   assert.match(chatWindowSource, /paddingBottom: readOnly \? "env\(safe-area-inset-bottom\)" : undefined/);
   assert.match(cssSource, /\.mobile-composer \{[\s\S]*?margin: 6px 8px max\(8px, var\(--safe-area-bottom\)\);/);
+  assert.match(appShellSource, /height: "calc\(36px \+ env\(safe-area-inset-top\)\)"/);
+  assert.match(appShellSource, /\/\* Right panel tab bar \*\/[\s\S]*?height: "calc\(36px \+ env\(safe-area-inset-top\)\)"/);
+  assert.match(appShellSource, /data-mobile-toolbar-file=\{mobile \? "true" : undefined\}/);
+  assert.match(cssSource, /left: var\(--safe-area-left\)/);
 });
 
 test("contains chat content and inputs within the mobile viewport", () => {

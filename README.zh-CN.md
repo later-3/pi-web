@@ -2,30 +2,55 @@
 
 [English](./README.md) | [日本語](./README.ja.md) | [Русский](./README.ru.md)
 
-[pi 编程智能体](https://github.com/badlogic/pi-mono) 的本地网页界面。它会读取本机的 pi 会话文件，在浏览器里提供会话管理、实时对话、模型配置、技能管理和项目文件预览。
+[pi 编程智能体](https://github.com/earendil-works/pi)的本地浏览器界面。Pi Web 与 pi 共用本机配置和会话文件，可在浏览器中查找和继续对话、运行智能体、配置模型与资源，并查看项目文件。
 
 中文微信群：请查看 [GitHub Discussions 帖子](https://github.com/agegr/pi-web/discussions/271)。
 
+![Pi Web 展示包含结构化 Markdown、工具调用和项目导航的 pi 会话](https://raw.githubusercontent.com/agegr/pi-web/main/docs/screenshot2.png)
+
+## 功能
+
+- **会话工作区**：按项目查找、继续、重命名、导出和删除对话，并查看运行状态、上下文占用、花费和压缩信息。
+- **两种分支方式**：**新会话**会从较早的消息创建独立会话文件；**从此处编辑**会在当前会话内创建分支。
+- **项目文件工具**：浏览和上传文件、查看 Git Diff，并预览源码、Markdown、图片、音频、PDF 和 DOCX；文件变化后会自动刷新。
+- **Git worktree**：从侧边栏切换 checkout，同时把同一仓库不同 worktree 的会话归在一起。
+- **网页配置**：无需离开 Pi Web，即可管理 Provider 登录和 API Key、模型、模型测试、插件包及技能。
+- **英文和简体中文界面**：Pi Web 首次打开时跟随浏览器语言，也可从顶部栏切换语言。
+
 ## 快速开始
 
-Pi Web 要求 Node.js 22.19.0 或更高版本。可通过 `node --version` 检查当前版本。
-
-**无需安装，直接运行：**
+Pi Web 要求 Node.js 22.19.0 或更高版本。先用 `node --version` 检查版本，然后运行：
 
 ```bash
 npx @agegr/pi-web@latest
 ```
 
-**或全局安装后使用：**
+服务就绪后，命令行会尝试自动打开浏览器。如果没有打开，请访问 [http://127.0.0.1:30141](http://127.0.0.1:30141)。Pi Web 默认仅监听 `127.0.0.1`。
+
+如果尚未配置模型 Provider，请打开**模型（Models）**面板登录或添加 API Key。
+
+如需全局安装 `pi-web` 命令：
 
 ```bash
-npm install -g @agegr/pi-web
+npm install -g @agegr/pi-web@latest
 pi-web
 ```
 
-启动后打开 [http://127.0.0.1:30141](http://127.0.0.1:30141)。命令行版本会在服务就绪后尝试自动打开浏览器。Pi Web 默认仅监听 `127.0.0.1`。
+更新前先用 `Ctrl+C` 停止正在运行的进程，再次执行同一条安装命令。卸载时运行 `npm uninstall -g @agegr/pi-web`。
 
-**可选参数：**
+## 配置
+
+端口和主机名以命令行参数为准，优先于对应的环境变量。`--no-open` 与 `PI_WEB_NO_OPEN=1` 中任意一个都会关闭自动打开浏览器。
+
+| 参数或环境变量 | 用途 | 默认值 |
+| --- | --- | --- |
+| `--port <端口>`、`-p <端口>` 或 `PORT` | 服务端口 | `30141` |
+| `--hostname <主机>`、`-H <主机>` 或 `PI_WEB_HOSTNAME` | 监听主机名 | `127.0.0.1` |
+| `--no-open` 或 `PI_WEB_NO_OPEN=1` | 不自动打开浏览器 | 自动打开 |
+| `PI_WEB_ALLOWED_HOSTS` | 额外允许的代理或自定义主机名，多个值用逗号分隔，必须精确匹配 | 未设置 |
+| `PI_WEB_PASSWORD` | 启用 HTTP Basic Auth，用户名固定为 `pi` | 不启用认证 |
+
+例如：
 
 ```bash
 pi-web --port 8080              # 自定义端口
@@ -48,6 +73,8 @@ pi-web
 ```
 
 账号文件使用 `{"credentials":[{"username":"用户名","password":"密码"}]}` 格式，建议权限设为 `600`。也兼容原有的 `PI_WEB_AUTH_USERNAME` + `PI_WEB_AUTH_PASSWORD_FILE` 单账号配置，但不能与多账号文件同时使用。只要配置了认证相关设置，应用层身份验证就会启用。启用后，`/login` 会签发绑定到具体账号的带签名 HttpOnly 会话 Cookie；公网部署应设置 `PI_WEB_AUTH_REQUIRED=1`，确保凭据缺失时拒绝访问，不会静默裸奔。Pi Web 可以调用高权限智能体，请勿通过明文 HTTP 或不可信反向代理暴露到互联网。
+
+### 远程访问
 
 设置 `PI_WEB_PASSWORD` 后，网页和所有 API 端点都会启用 HTTP Basic Auth，用户名固定为 `pi`。未设置或设置为空值时不启用认证。
 
@@ -79,9 +106,11 @@ API 请求仅接受 loopback 名称、IP 字面量、当前监听主机名，以
 ./scripts/check-upstream.sh
 ```
 
-## HTTP 代理
+Basic Auth 不会加密传输中的密码。不要通过明文 HTTP 将 Pi Web 暴露到互联网；远程访问应使用可信反向代理提供 HTTPS，或通过可信 VPN。如果反向代理传递外部主机名，请把该名称精确加入 `PI_WEB_ALLOWED_HOSTS`。这个白名单不会改变 Pi Web 的监听地址。
 
-Pi Web 的服务端模型请求和 API 请求会读取标准的 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY` 环境变量。
+### HTTP 代理
+
+服务端的模型和 API 请求会读取标准的 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY` 环境变量。
 
 macOS 或 Linux：
 
@@ -135,61 +164,33 @@ npm install
 npm run dev
 ```
 
-本地开发端口为 [http://127.0.0.1:30141](http://127.0.0.1:30141)。
-
-常用检查：
+开发服务器运行在 [http://127.0.0.1:30141](http://127.0.0.1:30141)。常用检查命令：
 
 ```bash
+npm test
 node_modules/.bin/tsc --noEmit
 npm run lint
 node --test lib/*.test.mjs components/*.test.mjs hooks/*.test.mjs
 ```
 
-开发时不要运行 `next build` / `npm run build`，它会写入 `.next/`，容易影响正在运行的 dev server。发布流程再执行构建。
+日常开发时不要运行 `next build` 或 `npm run build`。它们会写入 `.next/`，可能干扰开发服务器；仅在发布流程中执行构建。
 
-## 项目结构
+贡献者文档：[国际化](./docs/i18n.md)和[发布流程](./docs/release.md)。
 
+## 仓库结构
+
+```text
+app/             Next.js 界面和 API 路由
+components/      React 界面组件
+hooks/           客户端状态和交互 hooks
+lib/             会话、智能体、模型、文件、Git 和安全逻辑
+public/          静态资源和 PWA 文件
+bin/             npm CLI 入口及启动参数解析
+docs/            面向用户和贡献者的专题文档
 ```
-app/
-  api/
-    agent/          # 创建/驱动 AgentSession，提供 SSE 事件流
-    auth/           # OAuth 和 API key 管理
-    cwd/browse/     # 服务端目录浏览
-    cwd/validate/   # 自定义工作目录校验
-    default-cwd/    # 获取 pi 默认工作目录
-    files/          # 文件列表、读取、预览、watch
-    home/           # 当前用户 home 目录
-    models/         # 可用模型、默认模型、thinking levels
-    models-config/  # 读写 models.json、测试模型
-    sessions/       # 会话读取、重命名、删除、上下文、HTML 导出
-    skills/         # skills 列表、搜索、安装、启停
-components/
-  AppShell.tsx        # 主布局、URL 状态、顶部面板、文件标签
-  SessionSidebar.tsx  # 项目选择、会话树、Explorer
-  DirectoryPicker.tsx # 支持浏览和路径输入的工作目录选择器
-  ChatWindow.tsx      # 消息区、SSE、拖拽图片、minimap
-  ChatInput.tsx       # 输入栏、模型/工具/thinking/compact/slash controls
-  MessageView.tsx     # 消息、thinking、tool call/result 渲染
-  ModelsConfig.tsx    # 模型和认证配置面板
-  SkillsConfig.tsx    # 技能管理面板
-  FileExplorer.tsx    # 文件树
-  FileViewer.tsx      # 源码、diff、图片、音频、PDF、DOCX 预览
-lib/
-  directory-browser.ts # 目录规范化和安全枚举工具
-  http-dispatcher.ts  # 服务端 fetch 的 HTTP(S) 代理配置
-  rpc-manager.ts      # AgentSessionWrapper 生命周期和全局 registry
-  session-reader.ts   # 解析 .jsonl 会话文件和分支上下文
-  normalize.ts        # 规范化 toolCall 字段名
-  file-access.ts      # 文件读取安全边界
-  file-paths.ts       # 文件路径编码/相对路径工具
-  markdown.ts         # Markdown/Mermaid/KaTeX 插件配置
-  pi-types.ts         # pi 相关类型
-hooks/
-  useAgentSession.ts  # 会话加载、发送命令、SSE 状态机
-  useAudio.ts         # 完成提示音
-  useDragDrop.ts      # 图片拖拽
-  useTheme.ts         # 主题切换
-bin/
-  pi-web.js           # npm CLI 入口
-instrumentation.ts    # 初始化服务端 HTTP dispatcher
-```
+
+架构说明和详细文件地图见 [AGENTS.md](./AGENTS.md)。
+
+## 许可证
+
+[MIT](./LICENSE)

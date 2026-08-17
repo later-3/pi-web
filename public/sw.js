@@ -70,6 +70,48 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const requestedUrl = typeof event.notification.data?.url === "string"
+    ? event.notification.data.url
+    : "/";
+  let targetUrl = new URL("/", self.location.origin);
+  try {
+    const candidate = new URL(requestedUrl, self.location.origin);
+    if (candidate.origin === self.location.origin) targetUrl = candidate;
+  } catch {
+    // Keep the root URL when notification data is malformed.
+  }
+
+  event.waitUntil(focusOrOpenWindow(targetUrl.href));
+});
+
+async function focusOrOpenWindow(targetUrl) {
+  const windowClients = await self.clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  });
+  const exactClient = windowClients.find((client) => client.url === targetUrl);
+  const candidates = exactClient
+    ? [exactClient, ...windowClients.filter((client) => client !== exactClient)]
+    : windowClients;
+
+  for (const client of candidates) {
+    try {
+      const targetClient = client.url === targetUrl
+        ? client
+        : (await client.navigate(targetUrl)) ?? client;
+      await targetClient.focus();
+      return;
+    } catch {
+      // The window may have closed between matchAll and focus; try the next one.
+    }
+  }
+
+  await self.clients.openWindow(targetUrl);
+}
+
 async function cacheFirst(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
@@ -101,7 +143,7 @@ self.addEventListener("push", (event) => {
     };
 
     await self.registration.showNotification(title, options);
-    if ("setAppBadge" in self.navigator) {
+    if (self.navigator && "setAppBadge" in self.navigator) {
       await self.navigator.setAppBadge(1).catch(() => {});
     }
 
@@ -114,25 +156,50 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+
+  const requestedUrl = typeof event.notification.data?.url === "string"
+    ? event.notification.data.url
+    : "/";
+  let targetUrl = new URL("/", self.location.origin);
+  try {
+    const candidate = new URL(requestedUrl, self.location.origin);
+    if (candidate.origin === self.location.origin) targetUrl = candidate;
+  } catch {
+    // Keep the root URL when notification data is malformed.
+  }
+
   event.waitUntil((async () => {
-    if ("clearAppBadge" in self.navigator) {
+    if (self.navigator && "clearAppBadge" in self.navigator) {
       await self.navigator.clearAppBadge().catch(() => {});
     }
-
-    const path = typeof event.notification.data?.url === "string"
-      ? event.notification.data.url
-      : "/";
-    const url = new URL(path, self.location.origin).href;
-    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    const existing = windows[0];
-    if (existing) {
-      if ("navigate" in existing) await existing.navigate(url);
-      await existing.focus();
-      return;
-    }
-    await self.clients.openWindow(url);
+    await focusOrOpenWindow(targetUrl.href);
   })());
 });
+
+async function focusOrOpenWindow(targetUrl) {
+  const windowClients = await self.clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  });
+  const exactClient = windowClients.find((client) => client.url === targetUrl);
+  const candidates = exactClient
+    ? [exactClient, ...windowClients.filter((client) => client !== exactClient)]
+    : windowClients;
+
+  for (const client of candidates) {
+    try {
+      const targetClient = client.url === targetUrl
+        ? client
+        : (await client.navigate(targetUrl)) ?? client;
+      await targetClient.focus();
+      return;
+    } catch {
+      // The window may have closed between matchAll and focus; try the next one.
+    }
+  }
+
+  await self.clients.openWindow(targetUrl);
+}
 
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "GET_SW_VERSION") {

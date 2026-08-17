@@ -64,11 +64,16 @@ export default function RootLayout({
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("pi-theme");if(t==="dark")document.documentElement.classList.add("dark")}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem("pi-theme");var dark=t==="dark"||((t==null||t===""||t==="auto")&&window.matchMedia("(prefers-color-scheme: dark)").matches);if(dark)document.documentElement.classList.add("dark")}catch(e){}})();`,
           }}
         />
       </head>
-      <body translate="no" className="notranslate" style={{ display: "flex", flexDirection: "column" }}>
+      <body
+        translate="no"
+        className="notranslate"
+        suppressHydrationWarning
+        style={{ display: "flex", flexDirection: "column" }}
+      >
         {children}
         <PwaRegistration />
       </body>

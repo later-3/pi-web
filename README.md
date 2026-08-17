@@ -2,32 +2,53 @@
 
 [中文文档](./README.zh-CN.md) | [日本語](./README.ja.md) | [Русский](./README.ru.md)
 
-Local web UI for the [pi coding agent](https://github.com/badlogic/pi-mono). Pi Web reads your local pi session files and gives you a browser workspace for session browsing, real-time chat, model configuration, skill management, and project file preview.
+Local browser UI for the [pi coding agent](https://github.com/earendil-works/pi). Pi Web uses the same local configuration and session files as pi, so you can browse and resume conversations, run agent turns, configure models and resources, and inspect project files from a browser.
 
-![Pi Web shows the same pi session with structured Markdown, tool calls, and project navigation beside the CLI](https://raw.githubusercontent.com/agegr/pi-web/main/docs/screenshot2.png)
+![Pi Web displaying a pi session with structured Markdown, tool calls, and project navigation](https://raw.githubusercontent.com/agegr/pi-web/main/docs/screenshot2.png)
 
-The same pi session in CLI and Pi Web: structured tool calls, readable Markdown, session browsing, and cleaner results.
+## Features
+
+- **Session workspace**: browse, resume, rename, export, and delete conversations grouped by project, with running state, context usage, cost, and compaction details.
+- **Two ways to branch**: **New session** creates an independent session file from an earlier message; **Edit from here** creates a branch inside the current session.
+- **Project file tools**: browse and upload files, inspect Git diffs, and preview source, Markdown, images, audio, PDFs, and DOCX files with automatic refresh.
+- **Git worktrees**: switch checkouts from the sidebar while keeping sessions from the same repository grouped together.
+- **Web-based configuration**: manage provider login and API keys, models, model tests, plugin packages, and skills without leaving Pi Web.
+- **English and Simplified Chinese UI**: Pi Web follows the browser language initially and provides a language switcher in the top bar.
 
 ## Quick Start
 
-Pi Web requires Node.js 22.19.0 or newer. Check your version with `node --version`.
-
-**Run without installing:**
+Pi Web requires Node.js 22.19.0 or newer. Check your version with `node --version`, then run:
 
 ```bash
 npx @agegr/pi-web@latest
 ```
 
-**Or install globally:**
+The CLI opens a browser after the server is ready. If it does not, open [http://127.0.0.1:30141](http://127.0.0.1:30141). Pi Web listens only on `127.0.0.1` by default.
+
+If no model provider is configured yet, open the **Models** panel to sign in or add an API key.
+
+To install the `pi-web` command globally:
 
 ```bash
-npm install -g @agegr/pi-web
+npm install -g @agegr/pi-web@latest
 pi-web
 ```
 
-Then open [http://127.0.0.1:30141](http://127.0.0.1:30141). The CLI will try to open the browser automatically after the server is ready. Pi Web listens on `127.0.0.1` by default.
+To update, stop the running process with `Ctrl+C` and run the same install command again. To uninstall, run `npm uninstall -g @agegr/pi-web`.
 
-**Options:**
+## Configuration
+
+For port and hostname, command-line options override the corresponding environment variables. Either `--no-open` or `PI_WEB_NO_OPEN=1` disables automatic browser opening.
+
+| Option or environment variable | Purpose | Default |
+| --- | --- | --- |
+| `--port <port>`, `-p <port>`, or `PORT` | Server port | `30141` |
+| `--hostname <host>`, `-H <host>`, or `PI_WEB_HOSTNAME` | Bind hostname | `127.0.0.1` |
+| `--no-open` or `PI_WEB_NO_OPEN=1` | Do not open a browser automatically | Browser opens |
+| `PI_WEB_ALLOWED_HOSTS` | Additional exact proxy or custom hostnames, comma-separated | Unset |
+| `PI_WEB_PASSWORD` | Enable HTTP Basic Auth; the username is always `pi` | Authentication disabled |
+
+For example:
 
 ```bash
 pi-web --port 8080              # custom port
@@ -51,6 +72,8 @@ pi-web
 
 The credentials file uses `{"credentials":[{"username":"name","password":"secret"}]}` and should have mode `600`. The legacy `PI_WEB_AUTH_USERNAME` + `PI_WEB_AUTH_PASSWORD_FILE` single-account settings remain supported, but cannot be combined with the multi-account file. Application authentication is disabled unless auth settings are present. When enabled, `/login` creates a signed HttpOnly session cookie bound to the matching account; set `PI_WEB_AUTH_REQUIRED=1` in public deployments so missing credentials fail closed. Pi Web can invoke a high-privilege agent, so do not expose it through plain HTTP or without a trusted HTTPS reverse proxy.
 
+### Remote Access
+
 Set `PI_WEB_PASSWORD` to protect the web interface and every API endpoint with HTTP Basic Auth. The username is always `pi`. Leaving the variable unset or empty disables authentication.
 
 Pi Web can invoke a high-privilege agent. Basic Auth does not encrypt the password in transit, so do not expose plain HTTP to the internet. Use HTTPS through a trusted reverse proxy or a trusted VPN for remote access.
@@ -61,9 +84,11 @@ API requests accept loopback names, IP literals, the selected bind hostname, and
 
 The long-lived Later branch keeps its current upstream baseline in [`PROJECT_STATE.md`](./PROJECT_STATE.md). Its [custom feature/configuration inventory](./docs/later-customizations.zh-CN.md), [Linux deployment guide](./docs/linux-deployment.zh-CN.md), and [upstream sync/incident playbook](./docs/maintenance-playbook.zh-CN.md) are maintained in Chinese. Run `./scripts/check-upstream.sh` for a read-only drift check before merging upstream changes.
 
-## HTTP Proxy
+Basic Auth does not encrypt the password in transit. Do not expose Pi Web over plain HTTP to the internet; use HTTPS through a trusted reverse proxy or a trusted VPN. If a reverse proxy sends an external hostname, add that exact name to `PI_WEB_ALLOWED_HOSTS`. This allow-list does not change the address Pi Web binds to.
 
-Pi Web reads the standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables for server-side model and API requests.
+### HTTP Proxy
+
+Server-side model and API requests honor the standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables.
 
 On macOS or Linux:
 
@@ -106,6 +131,30 @@ npx @agegr/pi-web@latest
 - **Forks vs in-session branches**: Fork creates a new `.jsonl` file. "Edit from here" creates another branch inside the same session file.
 - **Internationalization**: see [Internationalization](./docs/i18n.md) for using translations and adding languages or UI text.
 
+### Downstream Session Context Menu
+
+Electron wrappers and other downstream integrations can provide a session-row
+context menu without patching `SessionSidebar`. Listen for the cancelable
+`pi-web:session-row-contextmenu` browser event and call `preventDefault()`
+synchronously when the integration will handle it:
+
+```js
+window.addEventListener("pi-web:session-row-contextmenu", (event) => {
+  event.preventDefault();
+  const { id, path, cwd, name, clientX, clientY, refresh } = event.detail;
+
+  void openSessionMenu({ id, path, cwd, name, clientX, clientY }).then((changed) => {
+    if (changed) refresh();
+  });
+});
+```
+
+The detail object contains `id`, `path`, `cwd`, optional `name`, pointer
+coordinates, and a `refresh()` callback for actions that change the session
+list. If no listener cancels the extension event, Pi Web preserves the
+browser's native context menu. This hook is browser-side and independent of
+Pi agent extensions.
+
 ## Development
 
 The multi-device decision, deployed same-origin gateway, performance limits, and failure modes are documented in [Multi-device architecture (Chinese)](./docs/multi-device-architecture.zh-CN.md).
@@ -115,61 +164,33 @@ npm install
 npm run dev
 ```
 
-The local dev server runs at [http://127.0.0.1:30141](http://127.0.0.1:30141).
-
-Common checks:
+The development server runs at [http://127.0.0.1:30141](http://127.0.0.1:30141). Run the common checks with:
 
 ```bash
+npm test
 node_modules/.bin/tsc --noEmit
 npm run lint
 node --test lib/*.test.mjs components/*.test.mjs hooks/*.test.mjs
 ```
 
-Avoid running `next build` / `npm run build` during local development. It writes to `.next/` and can interfere with the dev server; leave builds for release work.
+Do not run `next build` or `npm run build` during normal development. It writes to `.next/` and can interfere with the development server; leave builds for release work.
 
-## Project Structure
+Contributor guides: [Internationalization](./docs/i18n.md) and [Release process](./docs/release.md).
+
+## Repository Layout
 
 ```text
-app/
-  api/
-    agent/          # creates/drives AgentSession and exposes SSE events
-    auth/           # OAuth and API key management
-    cwd/browse/     # browsable server directory listing
-    cwd/validate/   # custom working directory validation
-    default-cwd/    # pi default working directory lookup
-    files/          # file listing, reading, preview, and watching
-    home/           # current user home directory
-    models/         # available models, default model, thinking levels
-    models-config/  # read/write models.json and test models
-    sessions/       # session reads, rename, delete, context, HTML export
-    skills/         # skill listing, search, install, enable/disable
-components/
-  AppShell.tsx        # main layout, URL state, top panels, file tabs
-  SessionSidebar.tsx  # project selector, session tree, Explorer
-  DirectoryPicker.tsx # browsable and editable working-directory picker
-  ChatWindow.tsx      # messages, SSE, image drag/drop, minimap
-  ChatInput.tsx       # input bar, model/tools/thinking/compact/slash controls
-  MessageView.tsx     # message, thinking, tool call/result rendering
-  ModelsConfig.tsx    # model and auth configuration panel
-  SkillsConfig.tsx    # skill management panel
-  FileExplorer.tsx    # file tree
-  FileViewer.tsx      # source, diff, image, audio, PDF, DOCX preview
-lib/
-  directory-browser.ts # directory normalization and safe listing helpers
-  http-dispatcher.ts  # HTTP(S) proxy setup for server-side fetch
-  rpc-manager.ts      # AgentSessionWrapper lifecycle and global registry
-  session-reader.ts   # parses .jsonl session files and branch contexts
-  normalize.ts        # normalizes toolCall field names
-  file-access.ts      # file read safety boundary
-  file-paths.ts       # path encoding and relative path helpers
-  markdown.ts         # Markdown/Mermaid/KaTeX plugin configuration
-  pi-types.ts         # pi-related types
-hooks/
-  useAgentSession.ts  # session loading, command sending, SSE state machine
-  useAudio.ts         # completion sound
-  useDragDrop.ts      # image drag/drop
-  useTheme.ts         # theme switching
-bin/
-  pi-web.js           # npm CLI entrypoint
-instrumentation.ts    # initializes the server HTTP dispatcher
+app/             Next.js UI and API routes
+components/      React UI components
+hooks/           Client state and interaction hooks
+lib/             Session, agent, model, file, Git, and security logic
+public/          Static assets and PWA files
+bin/             npm CLI entrypoint and launch option parsing
+docs/            Focused user and contributor guides
 ```
+
+See [AGENTS.md](./AGENTS.md) for the architecture notes and detailed file map.
+
+## License
+
+[MIT](./LICENSE)
