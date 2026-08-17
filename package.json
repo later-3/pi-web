@@ -28,21 +28,32 @@
     "package.json"
   ],
   "scripts": {
+    "pi:build": "node scripts/pi-source.mjs build",
+    "pi:link": "node scripts/pi-source.mjs link",
+    "pi:prepare": "node scripts/pi-source.mjs prepare",
+    "pi:verify": "node scripts/pi-source.mjs verify",
+    "predev": "npm run pi:verify",
     "dev": "next dev -H 127.0.0.1 -p 30141",
+    "predev:lan": "npm run pi:verify",
     "dev:lan": "next dev -H 0.0.0.0 -p 30141",
+    "prebuild": "npm run pi:verify -- --production",
     "build": "next build --webpack",
+    "prestart": "npm run pi:verify -- --production",
     "start": "next start -H 127.0.0.1 -p 30141",
+    "prestart:lan": "npm run pi:verify -- --production",
     "start:lan": "next start -H 0.0.0.0 -p 30141",
     "lint": "eslint .",
+    "prebuild:mobile": "npm run pi:verify -- --production",
     "build:mobile": "PI_WEB_DIST_DIR=.next-mobile next build --webpack",
+    "prestart:mobile": "npm run pi:verify -- --production",
     "start:mobile": "PI_WEB_DIST_DIR=.next-mobile next start -H 127.0.0.1 -p 30141",
     "release": "npm version patch --no-git-tag-version && npm run build && npm publish --access public"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "0.83.0",
-    "@earendil-works/pi-ai": "0.83.0",
-    "@earendil-works/pi-coding-agent": "0.83.0",
-    "@earendil-works/pi-tui": "0.83.0",
+    "@earendil-works/pi-agent-core": "file:../opc-os/pi/packages/agent",
+    "@earendil-works/pi-ai": "file:../opc-os/pi/packages/ai",
+    "@earendil-works/pi-coding-agent": "file:../opc-os/pi/packages/coding-agent",
+    "@earendil-works/pi-tui": "file:../opc-os/pi/packages/tui",
     "@tabler/icons-react": "^3.45.0",
     "next": "16.2.12",
     "proper-lockfile": "4.1.2",
@@ -50,6 +61,12 @@
     "react-dom": "^19.2.4",
     "undici": "8.5.0",
     "web-push": "^3.6.7"
+  },
+  "overrides": {
+    "@earendil-works/pi-agent-core": "file:../opc-os/pi/packages/agent",
+    "@earendil-works/pi-ai": "file:../opc-os/pi/packages/ai",
+    "@earendil-works/pi-coding-agent": "file:../opc-os/pi/packages/coding-agent",
+    "@earendil-works/pi-tui": "file:../opc-os/pi/packages/tui"
   },
   "devDependencies": {
     "@lobehub/icons": "^5.6.0",

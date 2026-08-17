@@ -8,9 +8,32 @@
 |---|---|---|---|
 | Later Pi Web | 私有 `origin` | 自研长期分支、部署来源 | 保存、推送、部署 |
 | Pi Web 主仓 | [`agegr/pi-web`](https://github.com/agegr/pi-web) 的 `upstream/main` 与 release | Web 应用基础 | 评估后人工 merge |
-| 官方 Pi | [`earendil-works/pi`](https://github.com/earendil-works/pi) 与 npm 的 `@earendil-works/pi-*` | Agent、模型、TUI SDK | 稳定版发布后单独兼容性升级 |
+| OPC OS Pi | Later 的 `opc-os/pi` 完整源码仓库；上游为 [`earendil-works/pi`](https://github.com/earendil-works/pi) | CLI 与 Pi Web 唯一 Pi runtime，包含 Agent、AI、TUI、Client、Protocol、Server 等 workspace | 以稳定 tag 整仓同步，再重建本地源码绑定 |
 
-`Pi Web 有更新` 不代表 `Pi 有更新`；Pi 源码 `main` 有新提交也不代表 npm 已发布可升级版本。
+`Pi Web 有更新` 不代表 `Pi 有更新`；Pi 源码 `main` 有新提交也不代表已形成稳定升级候选。Pi Web manifest 中的 package 版本只是兼容目标，Later runtime 必须来自 OPC OS Pi 源码绑定，不能回退到 registry 副本。
+
+## 2026-08-17 待同步差异
+
+| 项目 | Later 当前 | 最新稳定 | 拓扑差异 | 结论 |
+|---|---|---|---|---|
+| Pi Web | `81cfe3c`，基于 `v0.8.6` 的 Later 分支 | `v0.8.9` / `2a6e537` | Later-only `44`，upstream-only `91` commits | 需要人工合并，不能覆盖 Later 的认证、移动端、多设备和 Session 生命周期 |
+| OPC OS Pi | `15f30e39003e`，package `0.82.1` | `v0.84.2` / `914cf1472` | Later-only `2`，stable-only `532` commits；稳定版之后 `main` 另有 `19` commits | 只评估 `v0.84.2`，保留本地 faux Session 隔离修复，不追未发布 `main` |
+
+Pi `0.83.0 → 0.84.2` 的核心变化：
+
+1. 新增实验性 `client/protocol/server` 远程会话栈与独立 telemetry package；Agent harness/session storage 进入 lane-based v4，并强化 JSONL 崩溃、损坏、冲突创建和 metadata 读取处理。这是整仓变化，不是 4 个 SDK 包的小升级。
+2. TUI 新增 fullscreen、Transcript 搜索、Mermaid/LaTeX、滚动/选择和按次 theme；支持 `AGENTS.override.md`、默认工具配置、认证预检、Qwen Individual、Baseten 与更细的自定义采样参数。
+3. 优化 `message_update` 为 delta，避免累计消息造成二次方输出增长；fullscreen 绘制的逐帧分配约降低 `9–18x`；共享并发模型目录刷新，Mistral 改为原生流式传输，并给 OAuth/Copilot 更新增加并发和超时边界。
+4. 修复 Provider stop reason、Google/Anthropic/OpenAI/Bedrock replay、DeepSeek 输出上限、Responses tool namespace、重试、extension tool 保留、subagent 配置继承、JSON/RPC usage 丢失及多项终端输入/鼠标问题；同时更新 `undici`、`brace-expansion` 和 `nanoid` 等安全相关依赖。
+
+Pi Web `0.8.7 → 0.8.9` 的核心变化：
+
+1. 完成 Pi `0.84` streaming delta 适配，并显示 tool-call 参数流和执行进度；增强 SSE、跨页签重连、任务关注通知、跨 workspace 完成提示和 transient Session 恢复。
+2. 新增运行/未读 workspace 状态、Session cache hit/active time、每轮写入文件及 HTML/图片预览、系统主题、只读工具预设、图片流中追加、Extension widget 状态栏和 System prompt 懒加载。
+3. 优化流式消息滚动和模型切换，流中跳过语法高亮，限制 `100KB+` 消息与用户气泡高度，修复 CJK token/TPS、iOS PWA viewport、hydration、Markdown/YAML/diff/math 和文件页签状态。
+4. 修复 Provider 响应防御、裸 model scope 歧义、项目命令环境隔离、Next 子进程退出信号、Windows 项目标识/目录/打包及依赖漏洞。
+
+同步建议：把两仓视作一个兼容升级，但保留两个可回滚提交。先把 OPC 整仓合到稳定 `v0.84.2` 并重建源码绑定，再合 Pi Web `v0.8.9` 完成 delta/API 适配；通过真实 Session、SSE/tool streaming、compaction、Provider auth、Push 和 Mac/Linux production 候选验证后再部署。当前只完成来源适配和审计，尚未合并上述上游版本。
 
 ## 2026-08-05 已验证基线
 
@@ -51,8 +74,9 @@ Basic Auth 与应用登录不能叠加。两者同时配置时代理返回 `503`
 
 脚本会做两件只读检查：
 
-1. fetch `upstream/main`，报告 Pi Web 两边 commit 数和待评估日志；
-2. 用 `npm view` 比较项目固定的 4 个 Pi package 与 npm 稳定最新版。
+1. fetch Pi Web `upstream/main`，报告两边 commit 数和待评估日志；
+2. fetch OPC Pi 的 `upstream/main` 与 tags，报告 OPC HEAD 相对最新稳定 tag 和未发布 main 的差距；
+3. 用 `npm view` 检查 Pi Web manifest 的 4 个兼容版本，但不把这些 registry 包当作运行来源。
 
 它不会切分支、修改 manifest/lockfile、自动 merge 或自动升级。离线环境可临时设置 `PI_WEB_CHECK_PI_PACKAGES=0`，但下次联网工作仍要补查。
 

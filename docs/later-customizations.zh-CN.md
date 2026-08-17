@@ -20,6 +20,7 @@
 | 运行状态恢复 | 后台、断网或漏 SSE 后不会永久显示“运行中” | `hooks/useAgentSession.ts`、`lib/rpc-manager.ts` | SSE/reconciliation 测试 |
 | 运维脚本 | 安装、启动、停止、日志和全链路检查可重复执行 | `scripts/manage-pi-web.sh`、`scripts/verify-mobile-relay.sh` | `status` 与健康检查均为 0 |
 | 同终端多设备切换 | 在一个 origin、一个登录和一个 PWA 内原位切换执行设备；手机端 2 次点击直达目标设备，不整页刷新，同时保留设备本地 Session 边界和工作区记忆 | `MobileDeviceSwitcher.tsx`、`DeviceWorkspaceRoot.tsx`、`useDeviceWorkspace.ts`、`lib/device-workspace.ts`、`GET/POST /api/devices*` | 交互/状态机/回滚/快照测试 + 双向生产视口验收 |
+| OPC Pi 唯一源码 | CLI 与 Pi Web 都运行 `opc-os/pi` workspace 构建，不允许 npm Pi 包静默回退 | `scripts/pi-source.mjs`、`lib/pi-source-runtime.ts`、`instrumentation.ts` | `npm run pi:verify` + 模块 realpath + 真实 Session |
 
 ## 配置矩阵
 
@@ -28,6 +29,7 @@
 | 变量 | 必需条件 | 作用 | 安全规则 |
 |---|---|---|---|
 | `PI_CODING_AGENT_DIR` | 使用非默认 Pi 目录时 | 指向包含 Sessions、模型和 Push 状态的 agent 目录 | 目录只能让运行用户访问 |
+| `PI_WEB_PI_SOURCE_DIR` | OPC Pi 不在默认相邻目录时 | 指向完整 `opc-os/pi` Git worktree；默认 `<Code>/opc-os/pi` | 只进设备本地环境；不得写入 package manifest/lockfile |
 | `PI_WEB_DIST_DIR` | production 推荐 | 把 production 输出隔离到 `.next-mobile` | 开发期间不要让 build 写 `.next/` |
 | `PI_WEB_HOSTNAME` | 自定义监听地址时 | 明确 Next.js 监听主机 | 公网部署仍建议仅监听 loopback，由代理暴露 |
 | `PI_WEB_ALLOWED_HOSTS` | 外部域名与监听主机不同 | 允许精确的代理 Host，逗号分隔 | 不支持通配放开整个互联网 |
@@ -79,6 +81,7 @@ Push 内容只使用有界预览和 Session 深链，不发送完整对话。HTT
 12. 每台设备的最后 Session/cwd、文件页签和右侧面板只存于当前浏览器的有界 `sessionStorage` 快照；解析时必须丢弃损坏或越界数据，不能把设备状态混写到另一台设备。
 13. 手机设备入口属于一级导航：主界面点设备胶囊、设备面板点目标机器共 2 次点击。不得重新塞回“更多”菜单或叠加第二层下拉；切换提交前必须显示目标行忙碌状态，当前设备不可重复选择。
 14. `PI_WEB_PASSWORD` Basic Auth 与 `PI_WEB_AUTH_*` 应用登录互斥；两者同时存在必须 fail closed。公网 installed PWA 始终选择应用登录，避免原生认证框与 API/SSE 恢复冲突。
+15. Pi Web 的 4 个直接 Pi 依赖及 package-manager overrides 使用相邻 `../opc-os/pi` workspace 的相对 `file:` 声明，npm/Bun lockfile 和全部 `@earendil-works/pi-*` runtime 必须解析到经过 `pi:prepare` 的 OPC OS Pi workspace。源码链接、Git 指纹或构建摘要不一致时安装、开发、构建和生产启动都必须失败；`PI_CODING_AGENT_DIR` 只决定数据位置，不能作为代码绑定证明。
 
 ## 文档导航
 
@@ -86,6 +89,7 @@ Push 内容只使用有界预览和 Session 深链，不发送完整对话。HTT
 - 通用 Linux 新部署：[Linux 部署手册](./linux-deployment.zh-CN.md)
 - 上游同步、提交和案例库：[维护与故障案例手册](./maintenance-playbook.zh-CN.md)
 - Pi Web/Pi 两条发布线：[上游版本审计](./upstream-version-audit.zh-CN.md)
+- OPC Pi 唯一源码：[源码绑定与 Session 位置](./opc-pi-source-binding.zh-CN.md)
 - PWA 安装：[PWA 指南](./PWA.md)
 - Session/模型使用：[Pi Agent 手册](./pi-agent-model-usage.zh-CN.md) 与 [Codex 手册](./codex-session-model-usage.zh-CN.md)
 - 多设备：[多设备接入架构 ADR](./multi-device-architecture.zh-CN.md)

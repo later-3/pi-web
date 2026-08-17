@@ -77,6 +77,8 @@ if [[ ! -x "$next_bin" ]]; then
   exit 2
 fi
 
+"$node_bin" "$project_root/scripts/pi-source.mjs" verify --production
+
 # --- Step 1: Build -----------------------------------------------------------
 
 if [[ "$skip_build" != "true" ]]; then

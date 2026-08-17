@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getPiSourcePublicInfo } from "@/lib/pi-source-runtime";
 
 /**
  * Lightweight readiness probe.
@@ -11,6 +12,7 @@ export async function GET() {
     {
       status: "ok",
       service: "pi-web",
+      piSource: getPiSourcePublicInfo(),
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
     },

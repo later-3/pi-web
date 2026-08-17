@@ -3,6 +3,7 @@
 # dependencies
 /node_modules
 /node_modules-backup-*/
+/node_modules/.pi-web-source.json
 /.pnp
 .pnp.*
 .yarn/*

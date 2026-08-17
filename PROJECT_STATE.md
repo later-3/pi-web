@@ -11,7 +11,7 @@
 | 上游仓库 | `upstream = https://github.com/agegr/pi-web.git` |
 | 已合入上游 | `upstream/main@dfab585`，发布版本 `0.8.6` |
 | 上游合并提交 | `cb3655e` |
-| Pi SDK | `0.83.0` |
+| Pi runtime 来源 | 开发工作区已绑定 OPC OS Pi `15f30e39003e` / package `0.82.1`；不再以 registry SDK 作为 Later runtime。production artifact 尚未重建部署 |
 | Node.js 下限 | `22.19.0` |
 | 当前验证 | TypeScript、ESLint、`347/347` Node tests、移动 UI `50/50` 静态检查与 `git diff --check` 通过；Pi runtime 隔离回归 `12/12` 通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
@@ -36,6 +36,7 @@
 7. Chat 执行转录只读浏览、受保护的 Session/文件访问与运行状态恢复。
 8. production/relay 安装、启停、日志和端到端验证脚本。
 9. 多设备身份、受限 JSON 目录、同源粘性网关，以及桌面/手机在一个 React 工作区内无整页刷新地切换执行设备。
+10. OPC OS Pi 唯一源码绑定：Pi Web 的本地 Pi 依赖、开发和 production 启动都必须解析到相邻 `opc-os/pi` workspace；源码 Git 指纹、构建摘要或链接不一致时 fail closed。
 
 完整入口见 [自研功能与配置清单](./docs/later-customizations.zh-CN.md)。
 
@@ -69,9 +70,9 @@ Private 只解决仓库访问范围，不替代秘密管理。`deploy/secrets/`�
 
 ## 当前待办与风险
 
-### P1：上游生产依赖仍有 4 个 High 审计项
+### P1：Pi Web 与 OPC Pi 生产依赖仍有 High 审计项
 
-2026-07-30 的 `npm audit --omit=dev` 显示：Pi SDK 子树的 `brace-expansion@5.0.7` 命中 DoS 公告；Next `16.2.12` 内嵌的 PostCSS `8.4.31` 和 sharp `0.34.5` 也命中公告，并将 `next` 一并计为 High。npm 给出的 `--force` 方案会错误地降到 Next 9，不能采用。`brace-expansion@5.0.8` 虽已发布，但 npm 的嵌套 override 实验未改变实际依赖树，Bun 也不支持同一写法，因此没有保留“表面修复”。这些项必须等待 Pi SDK/Next 或主仓的兼容升级，并在部署前重新审计。
+2026-08-17 的 `npm audit --omit=dev` 显示：Pi Web lockfile 为 `5` 个 High 节点（`next`/`postcss`/`sharp`、`nanoid`、直接依赖 `undici`）；OPC Pi 当前源码 lockfile 为 `3` 个 High 节点（`brace-expansion`、`shell-quote`、直接依赖 `undici`）。两边存在同类公告，不能把 `5+3` 当成 8 个互不相同的漏洞。npm 给出的不兼容 `--force` 方案不能采用；Pi `v0.84.x` 与 Pi Web `v0.8.9` 已包含多项依赖安全更新，但合并后仍必须分别重新审计，不能只凭 changelog 宣布清零。
 
 ### P2：Linux 模型配置已验收，完整任务与 Push 待真机持续验证
 
@@ -194,6 +195,16 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 3. 验证：针对性移动布局测试 `4/4`、TypeScript、ESLint 与 `git diff --check` 通过。部署前已通过认证检查 production 运行 Session 为 `0`。
 4. 生产部署：旧 build `hP7sWMChyo3RDO9Ge97zy` 备份为 `.next-mobile-backup-pre-eaef325-20260806T064226Z`；新 build id 为 `4X-PPm5PHaOsN3tS-E74y`，production PID `52241` 与 `127.0.0.1:30141` listener 一致，relay PID 为 `52336`。
 5. 最终验收：本机 health、Mac LaunchAgent、云端 `33041`、Nginx 登录保护、公网登录页与 `piweb`/`later` 两个应用账号均通过；手机 PWA 若仍持有旧页面，需要完全关闭后重新打开或刷新一次以加载新 chunk。
+
+## 2026-08-17 OPC OS Pi 唯一源码绑定与 Session 审计
+
+1. 旧状态：本地 `pi` CLI 已软链接到 `/Users/xulater/Code/opc-os/pi/packages/coding-agent/dist/cli.js`，但 Pi Web 从自己的 `node_modules` 加载 registry `0.83.0`，只通过 `PI_CODING_AGENT_DIR` 共享数据，实际是两套代码。
+2. 绑定实现：4 个直接依赖改为相邻 `../opc-os/pi/packages/*` 的相对 `file:` workspace；`scripts/pi-source.mjs` 执行 OPC 整仓 `build:offline`、自动解析第一方 runtime 依赖闭包、建立本地链接并记录 Git/构建摘要。开发、npm build/start、Mac 管理脚本、Linux `ExecStartPre` 和 Next instrumentation 均执行 fail-closed 校验。
+3. 当前实证：CLI 与 Pi Web 都解析 OPC commit `15f30e39003e`、package `0.82.1`；4 个入口的 `import.meta.resolve` 与 `realpath` 全部位于 OPC workspace，`npm ls` 无 registry Pi 副本或 invalid dependency。Pi Web manifest 从此不再提供 registry runtime 回退。
+4. 验证：OPC 全量离线 build、TypeScript、ESLint、显式 Node tests `340/340`、源码绑定专项 `7/7`、shell syntax、npm/Bun 冷安装与 frozen lockfile、`git diff --check` 通过；`30142` dev health 返回 `piSource={mode:opc-source,version:0.82.1,commit:15f30e39003e,dirty:false,packageCount:4}`。另在 `/tmp` 从全新 `npm ci` 完成源码链接、隔离 production build、真实 `next start` 和 health 验收，没有写主工作区 `.next/.next-mobile`；production artifact 仍未重建或部署。
+5. Session 审计：当前未设置 `PI_CODING_AGENT_DIR`，`settings.json.sessionDir=null`。普通 Session 为 `~/.pi/agent/sessions` 下 `75` 个 JSONL，Chat 托管目录为 `~/.pi/agent/chat-sessions` 下 `2` 个；历史 faux 测试的 `23` 个 JSONL 仍在 `~/.pi/agent/session-quarantine`，不参与活跃列表。
+6. 独立存储：`pi-taskd` 主 runtime 有 `20` 个、image canary 有 `15` 个 Session，分别位于 `~/.local/share/pi-taskd*/runtime/sessions`，这是其显式 `--session-dir` 隔离，不是 Pi Web/CLI 泄漏；`opc-os/agent_knowledge` 另有 `8` 个 session-shaped JSONL 研究归档。若要求整机单一物理数据根，需要单独设计 pi-taskd 迁移，不能直接混入 Pi Web Session 目录。
+7. 剩余升级：OPC source 相对稳定 `v0.84.2` 仍少 `532` 个上游 commits，Pi Web 相对 `v0.8.9` 少 `91` 个；当前源码绑定先消除了双 runtime。两仓升级必须以 OPC 整个 monorepo + Pi Web 适配成对进行，且当前安全审计仍需通过该升级消除。
 
 ## 下一次更新本文件时至少记录
 

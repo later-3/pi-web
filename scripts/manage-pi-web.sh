@@ -160,6 +160,7 @@ require_plists() {
 
 start_jobs() {
   require_plists
+  node "$project_root/scripts/pi-source.mjs" verify --production
   if ! is_loaded "$production_label"; then
     launchctl bootstrap "$launch_domain" "$production_plist"
   fi

@@ -46,6 +46,48 @@ else
   echo "Status: already contains the latest $remote/$branch."
 fi
 
+pi_source_dir="${PI_WEB_PI_SOURCE_DIR:-$repo_root/../opc-os/pi}"
+echo
+echo "OPC OS Pi monorepo source:"
+if [[ ! -d "$pi_source_dir" ]] || ! git -C "$pi_source_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "  unavailable: $pi_source_dir"
+  echo "  Set PI_WEB_PI_SOURCE_DIR to audit the Pi source used by Pi Web."
+else
+  pi_remote="${PI_SOURCE_UPSTREAM_REMOTE:-upstream}"
+  pi_branch="${PI_SOURCE_UPSTREAM_BRANCH:-main}"
+  if ! git -C "$pi_source_dir" remote get-url "$pi_remote" >/dev/null 2>&1; then
+    echo "ERROR: Pi source remote '$pi_remote' is not configured in $pi_source_dir." >&2
+    exit 4
+  fi
+
+  echo "  Fetching $pi_remote/$pi_branch and stable tags ..."
+  git -C "$pi_source_dir" fetch "$pi_remote" "$pi_branch" --prune --tags
+  pi_head="$(git -C "$pi_source_dir" rev-parse HEAD)"
+  pi_main="refs/remotes/$pi_remote/$pi_branch"
+  latest_pi_tag="$(git -C "$pi_source_dir" tag --list 'v[0-9]*' --sort=-version:refname | head -n 1)"
+  if [[ -z "$latest_pi_tag" ]]; then
+    echo "ERROR: no stable Pi tag was found after fetch." >&2
+    exit 5
+  fi
+
+  read -r pi_local_only pi_stable_only < <(
+    git -C "$pi_source_dir" rev-list --left-right --count "$pi_head...refs/tags/$latest_pi_tag"
+  )
+  pi_unreleased_count="$(git -C "$pi_source_dir" rev-list --count "refs/tags/$latest_pi_tag..$pi_main")"
+  pi_version="$(node -e '
+    const manifest = require(process.argv[1]);
+    process.stdout.write(String(manifest.version ?? "unknown"));
+  ' "$pi_source_dir/packages/coding-agent/package.json")"
+
+  echo "  Source HEAD:     $(git -C "$pi_source_dir" rev-parse --short HEAD) (package $pi_version)"
+  echo "  Latest stable:   $latest_pi_tag ($(git -C "$pi_source_dir" rev-parse --short "refs/tags/$latest_pi_tag^{commit}"))"
+  echo "  Local-only:      $pi_local_only commit(s)"
+  echo "  Stable-only:     $pi_stable_only commit(s)"
+  echo "  Main-unreleased: $pi_unreleased_count commit(s)"
+  echo "  Working tree:    $(if [[ -n "$(git -C "$pi_source_dir" status --porcelain)" ]]; then echo dirty; else echo clean; fi)"
+  echo "  Policy: sync the whole OPC Pi monorepo at a stable tag; never upgrade only Pi Web SDK packages."
+fi
+
 if [[ "${PI_WEB_CHECK_PI_PACKAGES:-1}" == "0" ]]; then
   echo
   echo "Official Pi package check: skipped (PI_WEB_CHECK_PI_PACKAGES=0)."
@@ -62,7 +104,7 @@ pi_update_count=0
 pi_unknown_count=0
 
 echo
-echo "Official Pi stable package releases:"
+echo "Pi Web manifest compatibility hints (runtime must still come from OPC source):"
 for package in "${pi_packages[@]}"; do
   pinned="$({
     node -e '
@@ -77,29 +119,42 @@ for package in "${pi_packages[@]}"; do
   latest="$(npm view "$package" version --silent 2>/dev/null || true)"
   latest="${latest##*$'\n'}"
 
+  compared_version="$pinned"
+  pinned_label="$pinned"
+  if [[ "$pinned" == file:* ]]; then
+    local_package_dir="$repo_root/${pinned#file:}"
+    compared_version="$({
+      node -e '
+        const manifest = require(process.argv[1]);
+        process.stdout.write(String(manifest.version ?? ""));
+      ' "$local_package_dir/package.json"
+    } 2>/dev/null || true)"
+    pinned_label="local:${compared_version:-unknown}"
+  fi
+
   if [[ -z "$pinned" ]]; then
     printf '  %-42s pinned: %-12s latest: %s\n' "$package" "not-used" "${latest:-unknown}"
     continue
   fi
   if [[ -z "$latest" ]]; then
-    printf '  %-42s pinned: %-12s latest: unknown\n' "$package" "$pinned"
+    printf '  %-42s declared: %-16s latest: unknown\n' "$package" "$pinned_label"
     ((pi_unknown_count += 1))
     continue
   fi
-  if [[ "$pinned" == "$latest" ]]; then
-    printf '  %-42s pinned: %-12s latest: %-12s OK\n' "$package" "$pinned" "$latest"
+  if [[ "$compared_version" == "$latest" ]]; then
+    printf '  %-42s declared: %-16s latest: %-12s OK\n' "$package" "$pinned_label" "$latest"
   else
-    printf '  %-42s pinned: %-12s latest: %-12s REVIEW\n' "$package" "$pinned" "$latest"
+    printf '  %-42s declared: %-16s latest: %-12s REVIEW\n' "$package" "$pinned_label" "$latest"
     ((pi_update_count += 1))
   fi
 done
 
 if (( pi_update_count > 0 )); then
-  echo "Pi status: $pi_update_count stable package update(s) require a separate compatibility review."
+  echo "Manifest status: $pi_update_count stable package update(s) require a compatibility review with the OPC source."
 elif (( pi_unknown_count > 0 )); then
-  echo "Pi status: no mismatch found, but $pi_unknown_count package version(s) could not be queried."
+  echo "Manifest status: no mismatch found, but $pi_unknown_count package version(s) could not be queried."
 else
-  echo "Pi status: all pinned Pi packages match their latest stable releases."
+  echo "Manifest status: all declared Pi compatibility versions match their latest stable releases."
 fi
 
-echo "Policy: unreleased commits on the Pi source main branch are research input, not upgrade candidates."
+echo "Policy: OPC Pi is the runtime source of truth; unreleased main commits are research input, not upgrade candidates."

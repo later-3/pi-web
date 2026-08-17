@@ -209,6 +209,12 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - Skill toggling edits only the `disable-model-invocation` frontmatter key on the target `SKILL.md`; keep that surgical so user formatting survives.
 - `/api/skills/install` shells through `npx skills add ... --agent pi`; project installs run with the selected cwd.
 
+### OPC OS Pi is the only runtime source
+- Pi Web still creates `AgentSession` in-process; it does not spawn the `pi` CLI. All `@earendil-works/pi-*` runtime packages must be local links into the configured `opc-os/pi` worktree.
+- The four direct Pi dependencies and package-manager overrides use relative `file:../opc-os/pi/packages/*` specs so npm and Bun cannot retain registry Pi fallbacks and `npm ci` itself fails when the sibling source checkout is absent. `PI_WEB_PI_SOURCE_DIR` can select an alternate worktree for prepare/verify after dependencies exist. `PI_CODING_AGENT_DIR` selects data under `~/.pi/agent`; it does not select code.
+- After `npm ci`, a Pi commit change, or a Pi source edit, run `npm run pi:prepare`. Development, builds, Next instrumentation, Mac management and Linux systemd fail closed when `npm run pi:verify` cannot prove the links, source fingerprint and build output.
+- Sync Pi as one monorepo at a stable tag. Do not upgrade only the four Pi Web manifest packages or fall back to registry copies. Full procedure: `docs/opc-pi-source-binding.zh-CN.md`.
+
 ### Auth and model config
 - `ModelsConfig` combines models from `~/.pi/agent/models.json` with provider auth status from pi's `AuthStorage`/`ModelRegistry`.
 - Pi Web application login supports multiple accounts from `PI_WEB_AUTH_CREDENTIALS_FILE`; signed cookies are bound to the matching account. The legacy single-account username/password-file settings remain supported.

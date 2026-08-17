@@ -22,6 +22,18 @@ const nextConfig: NextConfig = {
     "@earendil-works/pi-tui",
     "web-push",
   ],
+  webpack(config, { isServer, nextRuntime }) {
+    if (isServer && nextRuntime !== "edge") {
+      // Next resolves workspace links to their real path before applying
+      // serverExternalPackages, so linked OPC packages otherwise get bundled.
+      // Keep the package request intact and let Node follow the verified link
+      // into the OPC source tree at runtime.
+      const opcPiExternal = async ({ request }: { request?: string }) =>
+        request?.startsWith("@earendil-works/pi-") ? `module ${request}` : undefined;
+      config.externals = [opcPiExternal, ...(Array.isArray(config.externals) ? config.externals : [])];
+    }
+    return config;
+  },
   allowedDevOrigins: ['192.168.*.*'],
   async headers() {
     return [
