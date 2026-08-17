@@ -2,18 +2,18 @@
 
 > 这是随仓库更新的“当前事实页”，不是永久设计说明。每次合入上游、完成重要功能或部署后都要更新。
 
-## 2026-08-06 基线
+## 2026-08-17 基线
 
 | 项目 | 当前值 |
 |---|---|
 | 开发分支 | `codex/later-custom` |
 | Later 远端 | `origin = https://github.com/later-3/pi-web.git`，GitHub 可见性 `PRIVATE` |
 | 上游仓库 | `upstream = https://github.com/agegr/pi-web.git` |
-| 已合入上游 | `upstream/main@dfab585`，发布版本 `0.8.6` |
-| 上游合并提交 | `cb3655e` |
-| Pi runtime 来源 | 开发工作区已绑定 OPC OS Pi `15f30e39003e` / package `0.82.1`；不再以 registry SDK 作为 Later runtime。production artifact 尚未重建部署 |
+| 已合入上游 | `v0.8.9@2a6e537` |
+| 上游合并提交 | `de20207` |
+| Pi runtime 来源 | 唯一源码为 `/Users/xulater/Code/opc-os/pi@1f2b9ff53c0a` / package `0.84.2`；Pi Web 的 7 个第一方 runtime 包全部显式绑定该 workspace，registry SDK 无回退。production artifact 尚未重建部署 |
 | Node.js 下限 | `22.19.0` |
-| 当前验证 | TypeScript、ESLint、`347/347` Node tests、移动 UI `50/50` 静态检查与 `git diff --check` 通过；Pi runtime 隔离回归 `12/12` 通过 |
+| 当前验证 | Pi Web TypeScript、ESLint、`687/687` Node tests、npm audit `0`、npm 冷安装隔离 production build/health、Bun frozen install 与 `git diff --check` 通过；OPC Pi `npm run check`、`build:offline`、`./test.sh` 与 npm audit `0` 通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
 | Mac production | commit `eaef325`，build id `4X-PPm5PHaOsN3tS-E74y`，2026-08-06 已部署 |
 
@@ -199,12 +199,12 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 ## 2026-08-17 OPC OS Pi 唯一源码绑定与 Session 审计
 
 1. 旧状态：本地 `pi` CLI 已软链接到 `/Users/xulater/Code/opc-os/pi/packages/coding-agent/dist/cli.js`，但 Pi Web 从自己的 `node_modules` 加载 registry `0.83.0`，只通过 `PI_CODING_AGENT_DIR` 共享数据，实际是两套代码。
-2. 绑定实现：4 个直接依赖改为相邻 `../opc-os/pi/packages/*` 的相对 `file:` workspace；`scripts/pi-source.mjs` 执行 OPC 整仓 `build:offline`、自动解析第一方 runtime 依赖闭包、建立本地链接并记录 Git/构建摘要。开发、npm build/start、Mac 管理脚本、Linux `ExecStartPre` 和 Next instrumentation 均执行 fail-closed 校验。
-3. 当前实证：CLI 与 Pi Web 都解析 OPC commit `15f30e39003e`、package `0.82.1`；4 个入口的 `import.meta.resolve` 与 `realpath` 全部位于 OPC workspace，`npm ls` 无 registry Pi 副本或 invalid dependency。Pi Web manifest 从此不再提供 registry runtime 回退。
-4. 验证：OPC 全量离线 build、TypeScript、ESLint、显式 Node tests `340/340`、源码绑定专项 `7/7`、shell syntax、npm/Bun 冷安装与 frozen lockfile、`git diff --check` 通过；`30142` dev health 返回 `piSource={mode:opc-source,version:0.82.1,commit:15f30e39003e,dirty:false,packageCount:4}`。另在 `/tmp` 从全新 `npm ci` 完成源码链接、隔离 production build、真实 `next start` 和 health 验收，没有写主工作区 `.next/.next-mobile`；production artifact 仍未重建或部署。
-5. Session 审计：当前未设置 `PI_CODING_AGENT_DIR`，`settings.json.sessionDir=null`。普通 Session 为 `~/.pi/agent/sessions` 下 `75` 个 JSONL，Chat 托管目录为 `~/.pi/agent/chat-sessions` 下 `2` 个；历史 faux 测试的 `23` 个 JSONL 仍在 `~/.pi/agent/session-quarantine`，不参与活跃列表。
-6. 独立存储：`pi-taskd` 主 runtime 有 `20` 个、image canary 有 `15` 个 Session，分别位于 `~/.local/share/pi-taskd*/runtime/sessions`，这是其显式 `--session-dir` 隔离，不是 Pi Web/CLI 泄漏；`opc-os/agent_knowledge` 另有 `8` 个 session-shaped JSONL 研究归档。若要求整机单一物理数据根，需要单独设计 pi-taskd 迁移，不能直接混入 Pi Web Session 目录。
-7. 剩余升级：OPC source 相对稳定 `v0.84.2` 仍少 `532` 个上游 commits，Pi Web 相对 `v0.8.9` 少 `91` 个；当前源码绑定先消除了双 runtime。两仓升级必须以 OPC 整个 monorepo + Pi Web 适配成对进行，且当前安全审计仍需通过该升级消除。
+2. 绑定实现：7 个第一方 runtime 包（agent-core、ai、client、coding-agent、protocol、telemetry、tui）全部改为相邻 `../opc-os/pi/packages/*` 的显式 `file:` 依赖与 override；`scripts/pi-source.mjs` 执行 OPC 整仓 `build:offline`、建立本地链接并记录 Git/构建摘要。开发、npm build/start、Mac 管理脚本、Linux `ExecStartPre` 和 Next instrumentation 均执行 fail-closed 校验。
+3. 上游同步：OPC Pi 合入稳定版 `v0.84.2`，merge commit `1f2b9ff53`；Pi Web 合入 `v0.8.9@2a6e537`，merge commit `de20207`。两仓的 Later 本地提交和 Chat 只读、Push、多设备、移动 PWA、Session Extension 开关等自研边界均保留。
+4. 上游核心能力：Pi Web 接入增量 Agent SSE wire、运行中未落盘 Session 列表、稳定 project identity、项目命令环境隔离、工具进度、Extension widgets、草稿恢复、文件 Viewer 状态、应用更新提示和移动工具栏；OPC Pi 更新到 `0.84.2` 的完整 monorepo runtime。
+5. 合并修复：Chat 托管 Session 即使已有内存 runtime 也不能绕过服务端只读校验；设备网关明确失败时恢复输入并仅按需探测一次；Service Worker 同时保留 Push badge 与安全的同源窗口聚焦；npm/Bun 锁文件显式覆盖 7 个 OPC 包，npm audit 修复 3 个传递依赖漏洞后为 `0`。
+6. 验证：OPC Pi `npm run check`、`build:offline`、`./test.sh` 和 audit 通过；Pi Web TypeScript、ESLint、`687/687` tests、npm audit `0`、Bun 无缓存 frozen install 通过。`/tmp` 全新 `npm ci` 后完成源码链接、隔离 production build、真实 `next start` 和 health 验收，返回 `piSource={mode:opc-source,version:0.84.2,commit:1f2b9ff53c0a,dirty:false,packageCount:7}`；未写主工作区 `.next/.next-mobile`，未部署 production。
+7. Session 审计：普通 Pi/Pi Web Session 统一位于 `~/.pi/agent/sessions`，Chat 托管证据位于 `~/.pi/agent/chat-sessions`；隔离测试归档位于 `~/.pi/agent/session-quarantine`。`pi-taskd` 的 `~/.local/share/pi-taskd*/runtime/sessions` 是显式独立 runtime，不是 Pi Web/CLI 泄漏；如要求整机单一物理数据根，需要另行设计迁移，不能直接混入交互 Session 目录。
 
 ## 下一次更新本文件时至少记录
 
