@@ -11,11 +11,11 @@
 | 上游仓库 | `upstream = https://github.com/agegr/pi-web.git` |
 | 已合入上游 | `v0.8.9@2a6e537` |
 | 上游合并提交 | `de20207` |
-| Pi runtime 来源 | 唯一源码为 `/Users/xulater/Code/opc-os/pi@1f2b9ff53c0a` / package `0.84.2`；Pi Web 的 7 个第一方 runtime 包全部显式绑定该 workspace，registry SDK 无回退。production artifact 尚未重建部署 |
+| Pi runtime 来源 | 唯一源码为 `/Users/xulater/Code/opc-os/pi@1f2b9ff53c0a` / package `0.84.2`；Pi Web 的 7 个第一方 runtime 包全部显式绑定该 workspace，registry SDK 无回退。Mac production 已部署，Linux 尚未部署 |
 | Node.js 下限 | `22.19.0` |
 | 当前验证 | Pi Web TypeScript、ESLint、`687/687` Node tests、npm audit `0`、npm 冷安装隔离 production build/health、Bun frozen install 与 `git diff --check` 通过；OPC Pi `npm run check`、`build:offline`、`./test.sh` 与 npm audit `0` 通过 |
 | 生产构建目录 | `.next-mobile/`，与开发 `.next/` 隔离 |
-| Mac production | commit `eaef325`，build id `4X-PPm5PHaOsN3tS-E74y`，2026-08-06 已部署 |
+| Mac production | commit `20e322d`（Pi Web `0.8.9` / Next.js `16.3.1` / OPC Pi `1f2b9ff53@0.84.2`），build id `6zM5m2IYenLTaiwcbOyu9`，2026-08-18 已部署 |
 
 ## 2026-08-07 Cloudflare Tunnel 应急直连
 
@@ -205,6 +205,15 @@ Pop!_OS 目标机的 Node 路径、systemd、Nginx、认证、设备目录、受
 5. 合并修复：Chat 托管 Session 即使已有内存 runtime 也不能绕过服务端只读校验；设备网关明确失败时恢复输入并仅按需探测一次；Service Worker 同时保留 Push badge 与安全的同源窗口聚焦；npm/Bun 锁文件显式覆盖 7 个 OPC 包，npm audit 修复 3 个传递依赖漏洞后为 `0`。
 6. 验证：OPC Pi `npm run check`、`build:offline`、`./test.sh` 和 audit 通过；Pi Web TypeScript、ESLint、`687/687` tests、npm audit `0`、Bun 无缓存 frozen install 通过。`/tmp` 全新 `npm ci` 后完成源码链接、隔离 production build、真实 `next start` 和 health 验收，返回 `piSource={mode:opc-source,version:0.84.2,commit:1f2b9ff53c0a,dirty:false,packageCount:7}`；未写主工作区 `.next/.next-mobile`，未部署 production。
 7. Session 审计：普通 Pi/Pi Web Session 统一位于 `~/.pi/agent/sessions`，Chat 托管证据位于 `~/.pi/agent/chat-sessions`；隔离测试归档位于 `~/.pi/agent/session-quarantine`。`pi-taskd` 的 `~/.local/share/pi-taskd*/runtime/sessions` 是显式独立 runtime，不是 Pi Web/CLI 泄漏；如要求整机单一物理数据根，需要另行设计迁移，不能直接混入交互 Session 目录。
+
+## 2026-08-18 Mac 部署 Pi Web v0.8.9 / OPC Pi v0.84.2
+
+1. 本次只更新 `mac-main`；用户明确说明 Linux 未开机，因此没有访问、修改或部署 `linux-home`，其 production 版本继续保持原状。
+2. 候选产物从 detached worktree `/Users/xulater/Code/pi-web-deploy-20e322d@20e322d` 构建：全新 `npm ci` 后执行 `pi:prepare` 与 production 校验，7 个 Pi runtime 包全部链接到 `/Users/xulater/Code/opc-os/pi@1f2b9ff53c0a`；Next.js `16.3.1` production build 成功，唯一告警仍为 Session HTML 导出路由的已知动态依赖表达式。
+3. 候选先在 `127.0.0.1:30142` 验收：health、应用登录、Session、Models、Devices、Running API 均为 `200`，读取 `85` 个 Session、`current=mac-main`、运行 Session=`0`，health 返回 `piSource={mode:opc-source,version:0.84.2,commit:1f2b9ff53c0a,dirty:false,packageCount:7}`。
+4. 正式切换前再次通过认证 API 确认运行 Session=`0`。切换前实际 build `g4O8WiRSj8VGGS4tFCvRk` 与旧依赖分别保存在 `.next-mobile-backup-pre-v0.8.9-20260817T231634Z`、`node_modules-backup-pre-v0.8.9-20260817T231634Z`；新 build id 为 `6zM5m2IYenLTaiwcbOyu9`。
+5. 部署后 production PID `81433` 与 `127.0.0.1:30141` listener 一致，relay PID `81527`；本机 health、云端 `33041`、公网 `https://pi.ai4child.asia`、未登录重定向，以及 `piweb`/`later` 两个应用账号登录全部通过。已认证 Session、Models、Devices、Running API 均为 `200`，运行 Session 仍为 `0`。
+6. 安装使用 `--skip-server`，没有修改云端 Nginx/Cloudflare 配置；Linux 离线是本次明确边界，不影响 Mac 控制面和执行面。回滚时应先确认运行 Session=`0`，再恢复上述成对的 build 与 `node_modules` 备份，不能只恢复其中一个。
 
 ## 下一次更新本文件时至少记录
 
