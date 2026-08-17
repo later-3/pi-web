@@ -806,6 +806,8 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
   const [error, setError] = useState<string | null>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>("source");
   const [wrapLines, setWrapLines] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copyFeedbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [watching, setWatching] = useState(false);
   const esRef = useRef<EventSource | null>(null);
   const gitDiffRequestRef = useRef(0);
@@ -965,6 +967,36 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
     );
   }, [cwd, filePath, onMentionLines]);
 
+  // 移动端 PWA 长按选择小字号等宽文本不可靠；复制按钮是唯一的确定性路径。
+  const handleCopyContent = useCallback(async () => {
+    const content = data?.content;
+    if (content === undefined) return;
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(content);
+      ok = true;
+    } catch {
+      // 剪贴板 API 在非安全上下文或被拒绝时回退到隐藏 textarea。
+      const textarea = document.createElement("textarea");
+      textarea.value = content;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try {
+        ok = document.execCommand("copy");
+      } catch {
+        ok = false;
+      }
+      textarea.remove();
+    }
+    if (!ok) return;
+    setCopied(true);
+    if (copyFeedbackRef.current) clearTimeout(copyFeedbackRef.current);
+    copyFeedbackRef.current = setTimeout(() => setCopied(false), 1600);
+  }, [data?.content]);
+
   const handleMentionSelectedLines = useCallback(() => {
     mentionLineRange(selectedLineRange);
   }, [mentionLineRange, selectedLineRange]);
@@ -1121,6 +1153,28 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
               </>
             )}
           </div>
+
+          {data && (
+            <button
+              type="button"
+              onClick={handleCopyContent}
+              title={copied ? t("i18n.copied") : t("i18n.copyContent")}
+              aria-label={copied ? t("i18n.copied") : t("i18n.copyContent")}
+              className="file-viewer-icon-button"
+              style={copied ? { color: "#4ade80" } : undefined}
+            >
+              {copied ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              )}
+            </button>
+          )}
 
           {!isDeletedDiff && <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />}
         </div>
